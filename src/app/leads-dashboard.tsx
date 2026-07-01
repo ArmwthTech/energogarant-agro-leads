@@ -3,12 +3,17 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  ArrowUp,
   ArrowDownUp,
   Building2,
   CalendarClock,
   Download,
+  ExternalLink,
   FileSearch,
   Gauge,
+  Globe,
+  MapPinned,
+  MessageCircle,
   RefreshCw,
   Search,
   Settings,
@@ -34,6 +39,19 @@ function rub(value: number) {
     notation: "compact",
     maximumFractionDigits: 1,
   }).format(value);
+}
+
+function leadSearchLinks(lead: ScoredLead) {
+  const base = `${lead.shortName} ${lead.inn} Ростовская область`;
+  const site = `${base} официальный сайт контакты`;
+  return [
+    ["Сайт", Globe, `https://www.google.com/search?q=${encodeURIComponent(site)}`],
+    ["Яндекс", Search, `https://yandex.ru/search/?text=${encodeURIComponent(site)}`],
+    ["Google", Search, `https://www.google.com/search?q=${encodeURIComponent(base)}`],
+    ["VK", MessageCircle, `https://vk.com/search?c%5Bq%5D=${encodeURIComponent(base)}&c%5Bsection%5D=communities`],
+    ["OK", MessageCircle, `https://ok.ru/search?st.query=${encodeURIComponent(base)}`],
+    ["2ГИС", MapPinned, `https://2gis.ru/search/${encodeURIComponent(base)}`],
+  ] as const;
 }
 
 export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
@@ -79,7 +97,15 @@ export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
 
   return (
     <main className="min-h-screen bg-[#f6f7f9] text-[#1d1d1f]">
-      <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[76px_minmax(720px,1fr)_380px]">
+      <button
+        className="fixed bottom-5 right-5 z-20 inline-flex h-11 w-11 items-center justify-center rounded-md bg-[#c8102e] text-white shadow-lg hover:bg-[#9f0d24]"
+        title="Наверх"
+        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+      >
+        <ArrowUp size={20} />
+      </button>
+
+      <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[76px_minmax(720px,1fr)]">
         <aside className="hidden border-r border-[#d9dde5] bg-white lg:block">
           <div className="flex h-16 items-center justify-center border-b border-[#d9dde5]">
             <div className="grid h-10 w-10 place-items-center rounded-md bg-[#c8102e] text-sm font-black text-white">
@@ -231,7 +257,7 @@ export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
           </div>
         </section>
 
-        <aside className="border-t border-[#d9dde5] bg-white lg:border-l lg:border-t-0">
+        <aside className="border-t border-[#d9dde5] bg-white lg:col-start-2">
           <div className="flex h-16 items-center justify-between border-b border-[#d9dde5] px-4">
             <div>
               <div className="text-xs text-[#667085]">Карточка лида</div>
@@ -297,6 +323,27 @@ export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
                 </span>
                 <span className="font-mono text-xs">{selectedLead.confidence}%</span>
               </a>
+            </section>
+
+            <section>
+              <h3 className="mb-2 text-sm font-semibold">Поиск сайта и соцсетей</h3>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {leadSearchLinks(selectedLead).map(([label, Icon, href]) => (
+                  <a
+                    key={label}
+                    className="inline-flex h-10 items-center justify-between gap-2 rounded-md border border-[#d9dde5] px-3 text-sm hover:border-[#c8102e] hover:text-[#c8102e]"
+                    href={href}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <Icon size={15} />
+                      {label}
+                    </span>
+                    <ExternalLink size={13} />
+                  </a>
+                ))}
+              </div>
             </section>
 
             <section>
