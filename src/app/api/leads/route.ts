@@ -1,5 +1,5 @@
-import { getScoredLeads } from "@/data/sample";
+import { getLeads } from "@/lib/repository";
 
 export async function GET() {
-  return Response.json({ leads: getScoredLeads() });
+  return Response.json({ leads: await getLeads() });
 }

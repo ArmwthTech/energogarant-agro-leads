@@ -13,10 +13,8 @@ import {
   TableProperties,
   Users,
 } from "lucide-react";
-import { getScoredLeads, statusLabels } from "@/data/sample";
-
-const leads = getScoredLeads();
-const selectedLead = leads[0];
+import { statusLabels } from "@/data/sample";
+import { getLeads } from "@/lib/repository";
 
 const nav = [
   { label: "Лиды", icon: TableProperties, active: true },
@@ -33,7 +31,29 @@ function rub(value: number) {
   }).format(value);
 }
 
-export default function Home() {
+export default async function Home() {
+  const leads = await getLeads();
+  const selectedLead = leads[0];
+  const stats = {
+    total: leads.length,
+    high: leads.filter((lead) => lead.score.priorityScore >= 70).length,
+    contacts: leads.filter((lead) => lead.corporateEmail || lead.phone).length,
+    check: leads.filter((lead) => lead.confidence < 70).length,
+  };
+
+  if (!selectedLead) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-[#f6f7f9] p-6">
+        <section className="rounded-md border border-[#d9dde5] bg-white p-6">
+          <h1 className="text-xl font-semibold">Лиды не загружены</h1>
+          <p className="mt-2 text-sm text-[#667085]">
+            Запустите импорт или подключите Neon Postgres с таблицей companies.
+          </p>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-[#f6f7f9] text-[#1d1d1f]">
       <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[76px_minmax(720px,1fr)_380px]">
@@ -116,10 +136,10 @@ export default function Home() {
 
           <div className="grid grid-cols-2 gap-3 px-5 py-4 xl:grid-cols-4">
             {[
-              ["Лидов", "4", "пилотная база"],
-              ["Высокий приоритет", "2", "70+ баллов"],
-              ["Контакты", "4", "корпоративные"],
-              ["Нужно проверить", "2", "confidence ниже 70"],
+              ["Лидов", String(stats.total), "пилотная база"],
+              ["Высокий приоритет", String(stats.high), "70+ баллов"],
+              ["Контакты", String(stats.contacts), "корпоративные"],
+              ["Нужно проверить", String(stats.check), "confidence ниже 70"],
             ].map(([label, value, hint]) => (
               <div
                 key={label}

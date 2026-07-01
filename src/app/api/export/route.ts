@@ -1,7 +1,7 @@
 import { buildLeadWorkbook } from "@/lib/export";
 
 export async function GET() {
-  const body = buildLeadWorkbook();
+  const body = await buildLeadWorkbook();
   return new Response(body, {
     headers: {
       "Content-Type":

@@ -1,13 +1,13 @@
 import { utils, write } from "xlsx";
 import { buildExportColumns } from "@/domain/agro";
-import { getScoredLeads } from "@/data/sample";
+import { getLeads } from "@/lib/repository";
 
-export function buildLeadWorkbook() {
+export async function buildLeadWorkbook() {
   const columns = buildExportColumns({
     includePersonalContacts: true,
     personalContactsVerified: false,
   });
-  const rows = getScoredLeads().map((lead) => ({
+  const rows = (await getLeads()).map((lead) => ({
     priority: lead.score.priorityScore,
     company: lead.name,
     inn: lead.inn,

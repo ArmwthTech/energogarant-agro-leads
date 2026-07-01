@@ -5,6 +5,7 @@ import {
   normalizeInn,
   scoreCompany,
 } from "./agro";
+import { parseOpenCompanyRows } from "@/lib/parser";
 
 assert.equal(normalizeInn(" 61-60 123456 "), "6160123456");
 
@@ -40,3 +41,18 @@ const columns = buildExportColumns({
 
 assert.ok(!columns.includes("personalPhone"));
 assert.ok(columns.includes("corporateEmail"));
+
+const parsed = parseOpenCompanyRows([
+  ["61-23-012450", " СПК Колхоз имени Кирова ", "https://egrul.nalog.ru/"],
+  ["6123012450", "СПК Колхоз имени Кирова дубль", "https://egrul.nalog.ru/"],
+  ["", "Без ИНН", "https://example.ru"],
+]);
+
+assert.deepEqual(parsed, [
+  {
+    id: "parsed-1",
+    inn: "6123012450",
+    name: "СПК Колхоз имени Кирова",
+    sourceUrl: "https://egrul.nalog.ru/",
+  },
+]);

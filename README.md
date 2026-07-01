@@ -25,3 +25,7 @@ npm run dev
 Copy `.env.example` to `.env.local` and fill values from Vercel integrations.
 
 The MVP intentionally does not bypass captcha or anti-bot protection. Parsers only use open pages/API and record source confidence.
+
+## Database
+
+Apply `db/schema.sql` to Neon. Until `DATABASE_URL` is configured, the app uses a small seed dataset so previews stay usable.
