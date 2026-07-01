@@ -1,4 +1,4 @@
-import { utils, write } from "xlsx";
+import ExcelJS from "exceljs";
 import { buildExportColumns } from "@/domain/agro";
 import { getLeads } from "@/lib/repository";
 
@@ -19,10 +19,19 @@ export async function buildLeadWorkbook() {
     source: lead.source,
     agentComment: lead.agentComment,
   }));
-  const worksheet = utils.json_to_sheet(rows, { header: columns });
-  worksheet["!autofilter"] = { ref: worksheet["!ref"] ?? "A1:J1" };
-  worksheet["!cols"] = columns.map(() => ({ wch: 22 }));
-  const workbook = utils.book_new();
-  utils.book_append_sheet(workbook, worksheet, "Лиды");
-  return write(workbook, { type: "buffer", bookType: "xlsx" });
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("Лиды");
+  worksheet.columns = columns.map((key) => ({
+    key,
+    header: key,
+    width: 22,
+  }));
+  worksheet.addRows(rows);
+  worksheet.autoFilter = {
+    from: "A1",
+    to: `${String.fromCharCode(64 + columns.length)}1`,
+  };
+  worksheet.views = [{ state: "frozen", ySplit: 1 }];
+  worksheet.getRow(1).font = { bold: true };
+  return workbook.xlsx.writeBuffer();
 }

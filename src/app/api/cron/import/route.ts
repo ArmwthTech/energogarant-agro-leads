@@ -1,23 +1,28 @@
-import { parseOpenCompanyRows } from "@/lib/parser";
+import { validateCronSecret } from "@/domain/agro";
+import { runOfficialImportBatch } from "@/lib/sources";
+import { saveOfficialImportBatch } from "@/lib/repository";
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization");
-  if (
-    process.env.CRON_SECRET &&
-    authHeader !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
-    return new Response("Unauthorized", { status: 401 });
+  const secretCheck = validateCronSecret(
+    process.env.CRON_SECRET,
+    request.headers.get("authorization"),
+  );
+  if (secretCheck.status !== 200) {
+    return Response.json(
+      { error: secretCheck.message },
+      { status: secretCheck.status },
+    );
   }
 
-  const parsed = parseOpenCompanyRows([
-    ["6123012450", "СПК Колхоз имени Кирова", "https://egrul.nalog.ru/"],
-    ["6168123401", "ООО Агрофирма Донские поля", "https://egrul.nalog.ru/"],
-  ]);
+  const official = await runOfficialImportBatch();
+  const saved = await saveOfficialImportBatch(official.items, official.errors);
 
   return Response.json({
     ok: true,
-    imported: parsed.length,
-    skipped: 0,
+    imported: official.items.length,
+    saved: saved.saved,
+    skipped: official.errors.length,
+    errors: official.errors,
     policy: "open-pages-only-no-captcha-bypass",
   });
 }

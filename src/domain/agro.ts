@@ -1,6 +1,7 @@
 export type CompanySeed = {
   id: string;
   inn?: string | null;
+  ogrn?: string | null;
   name: string;
 };
 
@@ -25,11 +26,44 @@ export function normalizeInn(value: string | null | undefined) {
 export function dedupeCompanies<T extends CompanySeed>(companies: T[]) {
   const seen = new Set<string>();
   return companies.filter((company) => {
-    const key = normalizeInn(company.inn) || company.name.trim().toLowerCase();
+    const key =
+      normalizeInn(company.inn) ||
+      normalizeInn(company.ogrn) ||
+      normalizeName(company.name);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
+}
+
+export function normalizeName(value: string) {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+export function mergeLeadFacts<T extends CompanySeed>(companies: T[]) {
+  return dedupeCompanies(companies);
+}
+
+export function safeSourceUrl(value: string | null | undefined) {
+  try {
+    const url = new URL(value ?? "");
+    return url.protocol === "http:" || url.protocol === "https:"
+      ? url.toString()
+      : "#";
+  } catch {
+    return "#";
+  }
+}
+
+export function validateCronSecret(
+  secret: string | undefined,
+  authorization: string | null | undefined,
+) {
+  if (!secret) return { status: 500, message: "CRON_SECRET is not configured" };
+  if (authorization !== `Bearer ${secret}`) {
+    return { status: 401, message: "Unauthorized" };
+  }
+  return { status: 200, message: "OK" };
 }
 
 export function scoreCompany(input: ScoreInput): ScoreResult {

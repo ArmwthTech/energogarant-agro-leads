@@ -14,6 +14,7 @@ import {
   Users,
 } from "lucide-react";
 import { statusLabels } from "@/data/sample";
+import { safeSourceUrl } from "@/domain/agro";
 import { getLeads } from "@/lib/repository";
 
 const nav = [
@@ -302,7 +303,9 @@ export default async function Home() {
               <div className="space-y-2">
                 <a
                   className="flex items-center justify-between rounded-md border border-[#d9dde5] p-3 text-sm"
-                  href={selectedLead.sourceUrl}
+                  href={safeSourceUrl(selectedLead.sourceUrl)}
+                  rel="noreferrer"
+                  target="_blank"
                 >
                   <span className="inline-flex items-center gap-2">
                     <FileSearch size={16} />

@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import {
   buildExportColumns,
   dedupeCompanies,
+  mergeLeadFacts,
   normalizeInn,
+  safeSourceUrl,
   scoreCompany,
+  validateCronSecret,
 } from "./agro";
 import { parseOpenCompanyRows } from "@/lib/parser";
 
@@ -56,3 +59,30 @@ assert.deepEqual(parsed, [
     sourceUrl: "https://egrul.nalog.ru/",
   },
 ]);
+
+assert.equal(safeSourceUrl("javascript:alert(1)"), "#");
+assert.equal(safeSourceUrl("https://egrul.nalog.ru/"), "https://egrul.nalog.ru/");
+
+assert.deepEqual(
+  mergeLeadFacts([
+    {
+      id: "a",
+      inn: "",
+      ogrn: "1026100000001",
+      name: "ООО Дон",
+      sourceUrl: "https://egrul.nalog.ru/",
+    },
+    {
+      id: "b",
+      inn: "",
+      ogrn: "1026100000001",
+      name: "ООО Дон дубль",
+      sourceUrl: "https://zakupki.gov.ru/",
+    },
+  ]).map((company) => company.id),
+  ["a"],
+);
+
+assert.equal(validateCronSecret(undefined, undefined).status, 500);
+assert.equal(validateCronSecret("secret", undefined).status, 401);
+assert.equal(validateCronSecret("secret", "Bearer secret").status, 200);

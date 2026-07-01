@@ -1,6 +1,7 @@
 import { leads, type Lead } from "@/data/sample";
 import { scoreCompany } from "@/domain/agro";
 import { getSql } from "@/lib/db";
+import type { OfficialLeadFact } from "@/lib/sources";
 
 type DbLead = {
   id: string;
@@ -80,4 +81,77 @@ export async function getLeads() {
     ...lead,
     score: scoreCompany(lead),
   }));
+}
+
+export async function saveOfficialImportBatch(
+  items: OfficialLeadFact[],
+  errors: string[],
+) {
+  const sql = getSql();
+  if (!sql) return { saved: 0, logged: false };
+
+  const jobId = `job-${Date.now()}`;
+  await sql`
+    insert into import_jobs (id, source_type, cursor_value, status, error, imported_count)
+    values (${jobId}, 'official-open-sources', '0', 'running', '', 0)
+  `;
+
+  let saved = 0;
+  try {
+    for (const item of items.slice(0, 100)) {
+      const companyId = `company-${item.inn}`;
+
+      await sql`
+        insert into companies (
+          id, name, short_name, inn, ogrn, district, locality, address, okved,
+          source, source_url, confidence, has_crop_okved, has_corporate_contact
+        )
+        values (
+          ${companyId}, ${item.name}, ${item.name}, ${item.inn}, ${item.ogrn ?? ''},
+          'Ростовская область', '', '', 'АПК',
+          ${item.sourceType}, ${item.sourceUrl}, ${item.confidence}, true, false
+        )
+        on conflict (inn) do update set
+          name = excluded.name,
+          source = excluded.source,
+          source_url = excluded.source_url,
+          confidence = greatest(companies.confidence, excluded.confidence),
+          updated_at = now()
+      `;
+      await sql`
+        insert into source_facts (
+          id, company_id, fact_type, fact_value, source_type, source_url,
+          verified_status, confidence_score
+        )
+        values (
+          ${`${companyId}-${item.sourceType}`}, ${companyId}, 'official_import', ${item.name},
+          ${item.sourceType}, ${item.sourceUrl}, 'unverified', ${item.confidence}
+        )
+        on conflict (id) do nothing
+      `;
+      saved += 1;
+    }
+
+    await sql`
+      update import_jobs
+      set status = 'done',
+          cursor_value = ${String(saved)},
+          imported_count = ${saved},
+          error = ${errors.join('; ')},
+          updated_at = now()
+      where id = ${jobId}
+    `;
+    return { saved, logged: true };
+  } catch (error) {
+    await sql`
+      update import_jobs
+      set status = 'error',
+          cursor_value = ${String(saved)},
+          imported_count = ${saved},
+          error = ${String(error)},
+          updated_at = now()
+      where id = ${jobId}
+    `;
+    throw error;
+  }
 }

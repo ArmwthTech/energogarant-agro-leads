@@ -12,11 +12,15 @@
   "dependencies": {
     "@clerk/nextjs": "latest",
     "@neondatabase/serverless": "latest",
+    "exceljs": "^4.4.0",
     "lucide-react": "latest",
     "next": "latest",
     "react": "latest",
-    "react-dom": "latest",
-    "xlsx": "^0.18.5"
+    "react-dom": "latest"
+  },
+  "overrides": {
+    "postcss": "^8.5.16",
+    "uuid": "^11.1.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "latest",
