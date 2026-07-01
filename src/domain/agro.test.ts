@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   buildExportColumns,
   dedupeCompanies,
+  filterLeadRows,
   mergeLeadFacts,
   normalizeInn,
   safeSourceUrl,
@@ -86,3 +87,35 @@ assert.deepEqual(
 assert.equal(validateCronSecret(undefined, undefined).status, 500);
 assert.equal(validateCronSecret("secret", undefined).status, 401);
 assert.equal(validateCronSecret("secret", "Bearer secret").status, 200);
+
+const filtered = filterLeadRows(
+  [
+    {
+      name: "СПК Колхоз Дон",
+      shortName: "Колхоз Дон",
+      inn: "6102012863",
+      ogrn: "1026100665711",
+      district: "Ростовская область",
+      okved: "СПК/колхоз",
+      status: "new",
+      source: "ЕГРЮЛ",
+      director: "Председатель",
+      score: { priorityScore: 80 },
+    },
+    {
+      name: "КФХ Волна",
+      shortName: "КФХ Волна",
+      inn: "6102004693",
+      ogrn: "1136181003133",
+      district: "Ростовская область",
+      okved: "КФХ",
+      status: "check",
+      source: "ЕГРЮЛ",
+      director: "Глава",
+      score: { priorityScore: 40 },
+    },
+  ],
+  { search: "610201", kind: "СПК/колхоз", status: "new", sort: "priority_desc" },
+);
+
+assert.deepEqual(filtered.map((lead) => lead.inn), ["6102012863"]);

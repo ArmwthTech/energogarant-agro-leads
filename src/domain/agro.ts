@@ -19,6 +19,13 @@ export type ScoreResult = {
   explanation: string;
 };
 
+export type LeadFilters = {
+  search: string;
+  kind: string;
+  status: string;
+  sort: "priority_desc" | "priority_asc";
+};
+
 export function normalizeInn(value: string | null | undefined) {
   return (value ?? "").replace(/\D/g, "");
 }
@@ -115,4 +122,44 @@ export function buildExportColumns(options: {
   }
 
   return columns;
+}
+
+export function filterLeadRows<
+  T extends {
+    name: string;
+    shortName: string;
+    inn: string;
+    ogrn: string;
+    district: string;
+    okved: string;
+    status: string;
+    source: string;
+    director: string;
+    score: { priorityScore: number };
+  },
+>(rows: T[], filters: LeadFilters) {
+  const search = filters.search.trim().toLowerCase();
+  return rows
+    .filter((row) => {
+      const haystack = [
+        row.name,
+        row.shortName,
+        row.inn,
+        row.ogrn,
+        row.district,
+        row.okved,
+        row.source,
+        row.director,
+      ]
+        .join(" ")
+        .toLowerCase();
+      return !search || haystack.includes(search);
+    })
+    .filter((row) => filters.kind === "all" || row.okved === filters.kind)
+    .filter((row) => filters.status === "all" || row.status === filters.status)
+    .sort((a, b) =>
+      filters.sort === "priority_desc"
+        ? b.score.priorityScore - a.score.priorityScore
+        : a.score.priorityScore - b.score.priorityScore,
+    );
 }

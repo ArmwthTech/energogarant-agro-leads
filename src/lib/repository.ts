@@ -1,6 +1,7 @@
-import { leads, type Lead } from "@/data/sample";
+import type { Lead } from "@/data/sample";
 import { scoreCompany } from "@/domain/agro";
 import { getSql } from "@/lib/db";
+import { fetchEgrulRostovLeads } from "@/lib/egrul";
 import type { OfficialLeadFact } from "@/lib/sources";
 
 type DbLead = {
@@ -66,8 +67,11 @@ function mapDbLead(row: DbLead): Lead {
 export async function getLeads() {
   const sql = getSql();
   if (!sql) {
-    // ponytail: seed fallback keeps preview deploys working until Neon env is connected.
-    return leads.map((lead) => ({ ...lead, score: scoreCompany(lead) }));
+    // ponytail: live EGRUL first, static seed only if the official source flakes.
+    return (await fetchEgrulRostovLeads()).map((lead) => ({
+      ...lead,
+      score: scoreCompany(lead),
+    }));
   }
 
   const rows = await sql`
