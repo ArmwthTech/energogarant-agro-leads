@@ -25,3 +25,5 @@
 # local QA artifacts
 qa-*.png
 dev-server.*.log
+
+.vercel
