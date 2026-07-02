@@ -182,6 +182,31 @@ function bestCandidate(candidates: ContactCandidate[], kind: ContactCandidate["k
     .sort((a, b) => b.confidence - a.confidence)[0];
 }
 
+export function contactValues(
+  info: Pick<ContactInfo, "candidates">,
+  kind: ContactCandidate["kind"],
+  fallback = "",
+) {
+  const seen = new Set<string>();
+  return [
+    fallback,
+    ...info.candidates.filter((candidate) => candidate.kind === kind).map((candidate) => candidate.value),
+  ].filter((value) => {
+    const trimmed = value.trim();
+    if (!trimmed) return false;
+    const key = kind === "phone" ? trimmed.replace(/\D/g, "") : trimmed.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+export function contactSourceUrls(info: Pick<ContactInfo, "candidates" | "contactSourceUrl">) {
+  return Array.from(
+    new Set([info.contactSourceUrl, ...info.candidates.map((candidate) => candidate.sourceUrl)].filter(Boolean)),
+  );
+}
+
 function dedupeCandidates(candidates: ContactCandidate[]) {
   const seen = new Set<string>();
   return candidates

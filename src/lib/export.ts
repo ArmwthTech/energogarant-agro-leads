@@ -1,6 +1,6 @@
 import ExcelJS from "exceljs";
 import { buildExportColumns } from "@/domain/agro";
-import { getCachedContactInfo } from "@/lib/contact-enrichment";
+import { contactSourceUrls, contactValues, findLeadContacts, getCachedContactInfo } from "@/lib/contact-enrichment";
 import { getLeads } from "@/lib/repository";
 
 const headers: Record<string, string> = {
@@ -33,8 +33,18 @@ export async function buildLeadWorkbook() {
     includePersonalContacts: true,
     personalContactsVerified: false,
   });
-  const rows = (await getLeads()).map((lead) => {
-    const contact = getCachedContactInfo(lead.inn);
+  const leads = await getLeads();
+  const enrichedContacts = new Map(
+    await Promise.all(
+      leads
+        .filter((lead) => lead.publicSources?.length)
+        .map(async (lead) => [lead.inn, await findLeadContacts(lead)] as const),
+    ),
+  );
+  const rows = leads.map((lead) => {
+    const contact = enrichedContacts.get(lead.inn) ?? getCachedContactInfo(lead.inn);
+    const emptyContact = { candidates: [], contactSourceUrl: "" };
+    const contactInfo = contact ?? emptyContact;
     return {
       priority: lead.score.priorityScore,
       company: lead.name,
@@ -47,12 +57,12 @@ export async function buildLeadWorkbook() {
       expensesRub: lead.expensesRub || "",
       netProfitRub: lead.netProfitRub || "",
       assetsRub: lead.assetsRub || "",
-      corporateEmail: contact?.corporateEmail || lead.corporateEmail,
-      phone: contact?.phone || lead.phone,
-      website: contact?.website || lead.website,
+      corporateEmail: contactValues(contactInfo, "email", lead.corporateEmail).join("; "),
+      phone: contactValues(contactInfo, "phone", lead.phone).join("; "),
+      website: contactValues(contactInfo, "website", lead.website).join("; "),
       contactStatus: contact?.contactStatus || "",
       contactConfidence: contact?.contactConfidence || "",
-      contactSource: contact?.contactSourceUrl || "",
+      contactSource: contactSourceUrls(contactInfo).join("; "),
       potential: `${lead.score.budgetRangeRub[0]}-${lead.score.budgetRangeRub[1]}`,
       status: lead.status,
       source: lead.source,

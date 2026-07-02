@@ -10,7 +10,13 @@ import {
   validateCronSecret,
 } from "./agro";
 import { parseOpenCompanyRows } from "@/lib/parser";
-import { buildContactCandidates, extractContacts, findLeadContacts } from "@/lib/contact-enrichment";
+import {
+  buildContactCandidates,
+  contactSourceUrls,
+  contactValues,
+  extractContacts,
+  findLeadContacts,
+} from "@/lib/contact-enrichment";
 import { fallbackLeadFromInn, knownLeadProfiles } from "@/lib/repository";
 
 assert.equal(normalizeInn(" 61-60 123456 "), "6160123456");
@@ -193,6 +199,14 @@ findLeadContacts({
     assert.equal(kolosContacts.phone, "(86349) 2-62-71");
     assert.equal(kolosContacts.corporateEmail, "kolos12006@yandex.ru");
     assert.equal(kolosContacts.contactSourceType, "directory");
+    assert.deepEqual(contactValues(kolosContacts, "phone"), [
+      "(86349) 2-62-71",
+      "(928) 123-32-85",
+      "+7 863 493-62-51",
+      "+7 863 493-62-71",
+    ]);
+    assert.deepEqual(contactValues(kolosContacts, "email"), ["kolos12006@yandex.ru"]);
+    assert.ok(contactSourceUrls(kolosContacts).some((url) => url.includes("agrobase.ru")));
   })
   .catch((error) => {
     console.error(error);

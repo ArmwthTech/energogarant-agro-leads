@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft, ExternalLink, MousePointer2, Search } from "lucide-react";
-import { findLeadContacts, mergeContactInfo } from "@/lib/contact-enrichment";
+import { contactValues, findLeadContacts, mergeContactInfo } from "@/lib/contact-enrichment";
 import { getLeadByInn } from "@/lib/repository";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +34,9 @@ export default async function LeadPage({
     ),
   ]);
   const enriched = mergeContactInfo(lead, contactInfo);
+  const phones = contactValues(contactInfo, "phone", enriched.phone);
+  const emails = contactValues(contactInfo, "email", enriched.corporateEmail);
+  const websites = contactValues(contactInfo, "website", enriched.website);
   const money = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 1, notation: "compact" });
   const query = `${enriched.shortName} ${enriched.inn} Ростовская область`;
   const links = [
@@ -81,19 +84,33 @@ export default async function LeadPage({
           <section>
             <h2 className="mb-2 text-sm font-semibold">Контакты</h2>
             <div className="rounded-md border border-[#d9dde5] p-3 text-sm">
-              <div>{enriched.phone || "Телефон не найден"}</div>
-              <div className="mt-1 text-[#667085]">{enriched.corporateEmail || "Email не найден"}</div>
-              {enriched.website ? (
-                <a
-                  className="mt-2 block text-[#c8102e] hover:underline"
-                  href={enriched.website}
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  {enriched.website}
-                </a>
+              <div className="font-semibold">Телефоны</div>
+              {phones.length ? phones.map((phone) => <div key={phone}>{phone}</div>) : <div>Телефон не найден</div>}
+              <div className="mt-3 font-semibold">Почты</div>
+              {emails.length ? (
+                emails.map((email) => (
+                  <div key={email} className="text-[#667085]">
+                    {email}
+                  </div>
+                ))
               ) : (
-                <div className="mt-2 text-[#667085]">Официальный сайт не найден</div>
+                <div className="text-[#667085]">Email не найден</div>
+              )}
+              <div className="mt-3 font-semibold">Сайты</div>
+              {websites.length ? (
+                websites.map((website) => (
+                  <a
+                    key={website}
+                    className="block text-[#c8102e] hover:underline"
+                    href={website}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    {website}
+                  </a>
+                ))
+              ) : (
+                <div className="text-[#667085]">Официальный сайт не найден</div>
               )}
               {contactInfo.contactStatus && (
                 <div className="mt-3 text-xs text-[#667085]">
