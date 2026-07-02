@@ -22,6 +22,14 @@ export type Lead = {
   status: LeadStatus;
   revenueRub: number;
   assetsRub: number;
+  expensesRub?: number;
+  netProfitRub?: number;
+  capitalRub?: number;
+  fixedAssetsRub?: number;
+  financialYear?: string;
+  financialSourceUrl?: string;
+  activities?: string[];
+  publicSources?: { label: string; url: string }[];
   employees: number;
   corporateEmail: string;
   phone: string;

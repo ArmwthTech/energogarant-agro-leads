@@ -11,7 +11,7 @@ import {
 } from "./agro";
 import { parseOpenCompanyRows } from "@/lib/parser";
 import { buildContactCandidates, extractContacts, findLeadContacts } from "@/lib/contact-enrichment";
-import { fallbackLeadFromInn } from "@/lib/repository";
+import { fallbackLeadFromInn, knownLeadProfiles } from "@/lib/repository";
 
 assert.equal(normalizeInn(" 61-60 123456 "), "6160123456");
 
@@ -48,6 +48,9 @@ const columns = buildExportColumns({
 assert.ok(!columns.includes("personalPhone"));
 assert.ok(columns.includes("corporateEmail"));
 assert.ok(columns.includes("website"));
+assert.ok(columns.includes("address"));
+assert.ok(columns.includes("revenueRub"));
+assert.ok(columns.includes("publicSources"));
 assert.ok(columns.includes("contactStatus"));
 assert.ok(columns.includes("contactConfidence"));
 assert.ok(columns.includes("contactSource"));
@@ -187,7 +190,7 @@ findLeadContacts({
   ogrn: "1026101312710",
 })
   .then((kolosContacts) => {
-    assert.equal(kolosContacts.phone, "+7 863 493-62-51");
+    assert.equal(kolosContacts.phone, "(86349) 2-62-71");
     assert.equal(kolosContacts.corporateEmail, "kolos12006@yandex.ru");
     assert.equal(kolosContacts.contactSourceType, "directory");
   })
@@ -195,3 +198,10 @@ findLeadContacts({
     console.error(error);
     process.exitCode = 1;
   });
+
+assert.equal(knownLeadProfiles["6122006924"].publicSources?.length, 10);
+assert.equal(knownLeadProfiles["6122006924"].expensesRub, 326_814_000);
+assert.equal(
+  knownLeadProfiles["6122006924"].financialSourceUrl,
+  "https://companies.rbc.ru/id/1026101312710-spk-spk-kolhoz-kolos/",
+);

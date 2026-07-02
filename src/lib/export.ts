@@ -8,6 +8,13 @@ const headers: Record<string, string> = {
   company: "Компания",
   inn: "ИНН",
   district: "Район",
+  address: "Адрес",
+  director: "Руководитель",
+  okved: "Виды деятельности",
+  revenueRub: "Оборот",
+  expensesRub: "Расходы/себестоимость",
+  netProfitRub: "Чистая прибыль",
+  assetsRub: "Активы",
   corporateEmail: "Email",
   phone: "Телефон",
   website: "Сайт",
@@ -17,6 +24,7 @@ const headers: Record<string, string> = {
   potential: "Потенциал",
   status: "Статус лида",
   source: "Источник лида",
+  publicSources: "10 сайтов из Яндекса",
   agentComment: "Комментарий",
 };
 
@@ -32,6 +40,13 @@ export async function buildLeadWorkbook() {
       company: lead.name,
       inn: lead.inn,
       district: lead.district,
+      address: lead.address,
+      director: lead.director,
+      okved: lead.activities?.join("; ") || lead.okved,
+      revenueRub: lead.revenueRub || "",
+      expensesRub: lead.expensesRub || "",
+      netProfitRub: lead.netProfitRub || "",
+      assetsRub: lead.assetsRub || "",
       corporateEmail: contact?.corporateEmail || lead.corporateEmail,
       phone: contact?.phone || lead.phone,
       website: contact?.website || lead.website,
@@ -41,6 +56,7 @@ export async function buildLeadWorkbook() {
       potential: `${lead.score.budgetRangeRub[0]}-${lead.score.budgetRangeRub[1]}`,
       status: lead.status,
       source: lead.source,
+      publicSources: lead.publicSources?.map((source) => `${source.label}: ${source.url}`).join("; ") ?? "",
       agentComment: lead.agentComment,
     };
   });

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ExternalLink, Search } from "lucide-react";
+import { ArrowLeft, ExternalLink, MousePointer2, Search } from "lucide-react";
 import { findLeadContacts, mergeContactInfo } from "@/lib/contact-enrichment";
 import { getLeadByInn } from "@/lib/repository";
 
@@ -34,6 +34,7 @@ export default async function LeadPage({
     ),
   ]);
   const enriched = mergeContactInfo(lead, contactInfo);
+  const money = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 1, notation: "compact" });
   const query = `${enriched.shortName} ${enriched.inn} Ростовская область`;
   const links = [
     ["Яндекс", `https://yandex.ru/search/?text=${encodeURIComponent(`${query} официальный сайт телефон email`)}`],
@@ -70,6 +71,10 @@ export default async function LeadPage({
                 <dt className="text-xs text-[#667085]">Руководитель</dt>
                 <dd>{enriched.director}</dd>
               </div>
+              <div>
+                <dt className="text-xs text-[#667085]">Адрес</dt>
+                <dd>{enriched.address || "Адрес не найден"}</dd>
+              </div>
             </dl>
           </section>
 
@@ -100,6 +105,67 @@ export default async function LeadPage({
           </section>
 
           <section className="md:col-span-2">
+            <h2 className="mb-2 text-sm font-semibold">Бухгалтерская отчетность</h2>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              {[
+                ["Год", enriched.financialYear || "не найдено"],
+                ["Оборот", enriched.revenueRub ? `${money.format(enriched.revenueRub)} руб.` : "не найден"],
+                ["Расходы", enriched.expensesRub ? `${money.format(enriched.expensesRub)} руб.` : "не найдены"],
+                ["Прибыль", enriched.netProfitRub ? `${money.format(enriched.netProfitRub)} руб.` : "не найдена"],
+                ["Активы", enriched.assetsRub ? `${money.format(enriched.assetsRub)} руб.` : "не найдены"],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-md border border-[#d9dde5] p-3">
+                  <div className="text-xs text-[#667085]">{label}</div>
+                  <div className="mt-1 text-sm font-semibold">{value}</div>
+                </div>
+              ))}
+            </div>
+            {enriched.financialSourceUrl && (
+              <a
+                className="mt-3 inline-flex items-center gap-2 text-sm text-[#c8102e] hover:underline"
+                href={enriched.financialSourceUrl}
+                rel="noreferrer"
+                target="_blank"
+              >
+                Источник отчетности <ExternalLink size={13} />
+              </a>
+            )}
+          </section>
+
+          <section className="md:col-span-2">
+            <h2 className="mb-2 text-sm font-semibold">Виды деятельности</h2>
+            <div className="rounded-md border border-[#d9dde5] p-3 text-sm">
+              {enriched.activities?.length ? (
+                <ul className="grid gap-2 md:grid-cols-2">
+                  {enriched.activities.map((activity) => (
+                    <li key={activity}>{activity}</li>
+                  ))}
+                </ul>
+              ) : (
+                enriched.okved || "ОКВЭД не найден"
+              )}
+            </div>
+          </section>
+
+          <section className="md:col-span-2">
+            <h2 className="mb-2 text-sm font-semibold">Открытые источники проверки</h2>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+              {(enriched.publicSources ?? [{ label: enriched.source, url: enriched.sourceUrl }]).map((source) => (
+                <a
+                  key={`${source.label}-${source.url}`}
+                  className="inline-flex min-h-10 items-center justify-between gap-2 rounded-md border border-[#d9dde5] px-3 py-2 text-sm hover:border-[#c8102e] hover:text-[#c8102e]"
+                  href={source.url}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  <span>{source.label}</span>
+                  <ExternalLink size={13} />
+                </a>
+              ))}
+            </div>
+          </section>
+
+          <section className="md:col-span-2">
             <h2 className="mb-2 text-sm font-semibold">Поиск сайта и соцсетей</h2>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
               {links.map(([label, href]) => (
@@ -122,8 +188,13 @@ export default async function LeadPage({
         </div>
 
         <footer className="border-t border-[#d9dde5] p-5 text-sm">
-          <Link className="text-[#c8102e] hover:underline" href="/">
+          <Link
+            className="inline-flex cursor-pointer items-center gap-2 rounded-md bg-[#c8102e] px-4 py-3 font-semibold text-white shadow-lg shadow-[#c8102e]/25 transition hover:-translate-y-0.5 hover:bg-[#9f0d24] focus:outline-none focus:ring-4 focus:ring-[#c8102e]/25"
+            href="/"
+          >
+            <ArrowLeft size={16} />
             Вернуться к таблице
+            <MousePointer2 className="animate-pulse" size={16} />
           </Link>
         </footer>
       </section>

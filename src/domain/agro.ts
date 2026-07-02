@@ -109,6 +109,13 @@ export function buildExportColumns(options: {
     "company",
     "inn",
     "district",
+    "address",
+    "director",
+    "okved",
+    "revenueRub",
+    "expensesRub",
+    "netProfitRub",
+    "assetsRub",
     "corporateEmail",
     "phone",
     "website",
@@ -118,6 +125,7 @@ export function buildExportColumns(options: {
     "potential",
     "status",
     "source",
+    "publicSources",
     "agentComment",
   ];
 

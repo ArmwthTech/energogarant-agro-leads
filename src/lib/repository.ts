@@ -39,10 +39,67 @@ const globalLeads = globalThis as typeof globalThis & {
 const leadMemory = globalLeads.__energogarantLeadMemory ?? new Map<string, Lead>();
 globalLeads.__energogarantLeadMemory = leadMemory;
 
+export const knownLeadProfiles: Record<string, Partial<Lead>> = {
+  // ponytail: public facts found manually; replace with persisted source_facts when DB is wired.
+  "6122006924": {
+    name: 'СЕЛЬСКОХОЗЯЙСТВЕННЫЙ ПРОИЗВОДСТВЕННЫЙ КООПЕРАТИВ (КОЛХОЗ) "КОЛОС"',
+    shortName: 'СПК (КОЛХОЗ) "КОЛОС"',
+    ogrn: "1026101312710",
+    address: "346816, Ростовская область, Мясниковский район, с. Большие Салы, ул. Советская, д. 7",
+    okved: "01.11.1 Выращивание зерновых культур; 01.11.3 Семена масличных культур; 01.41 Молочное КРС; 46.21.11 Оптовая торговля зерном",
+    director: "ПРЕДСЕДАТЕЛЬ: Луспикаян Григорий Ардоваздович",
+    phone: "(86349) 2-62-71",
+    corporateEmail: "kolos12006@yandex.ru",
+    revenueRub: 377_300_000,
+    expensesRub: 326_814_000,
+    assetsRub: 1_400_000_000,
+    netProfitRub: 4_700_000,
+    capitalRub: 1_400_000_000,
+    fixedAssetsRub: 1_100_000_000,
+    financialYear: "2025",
+    financialSourceUrl: "https://companies.rbc.ru/id/1026101312710-spk-spk-kolhoz-kolos/",
+    source: "Яндекс top-10: 10 открытых карточек контрагента",
+    sourceUrl: "https://yandex.ru/search/?text=6122006924%20%D0%A1%D0%9F%D0%9A%20%D0%9A%D0%9E%D0%9B%D0%9E%D0%A1",
+    activities: [
+      "01.11.1 Выращивание зерновых культур",
+      "01.11.3 Выращивание семян масличных культур",
+      "01.41 Разведение молочного крупного рогатого скота",
+      "46.21.11 Торговля оптовая зерном",
+      "49.42 Услуги перевозок",
+    ],
+    publicSources: [
+      { label: "Checko", url: "https://checko.ru/company/spk-kolhoz-kolos-1026101312710" },
+      { label: "РБК Компании", url: "https://companies.rbc.ru/id/1026101312710-spk-spk-kolhoz-kolos/" },
+      {
+        label: "СПАРК",
+        url: "https://spark-interfax.ru/rostovskaya-oblast-myasnikovski-raion/koop-kolos-inn-6122006924-ogrn-1026101312710-0a406d302c214c7da0475b4782576982",
+      },
+      { label: "BBNT", url: "https://bbnt.ru/company-requisites/253920" },
+      { label: "Audit-it", url: "https://www.audit-it.ru/contragent/1026101312710_spk-kolkhoz-kolos" },
+      { label: "VBankCenter", url: "https://vbankcenter.ru/contragent/1026101312710" },
+      { label: "Saby", url: "https://saby.ru/profile/6122006924-612201001" },
+      { label: "Companium", url: "https://companium.ru/id/1026101312710-spk-kolhoz-kolos" },
+      { label: "Inndex", url: "https://inndex.ru/ul/bolshie-saly/ogrn-1026101312710-dbc-spk-kolhoz-kolos" },
+      { label: "Agrobase", url: "https://www.agrobase.ru/organizations/apk/organization_apk_9267" },
+    ],
+    hasCropOkved: true,
+    hasMachinerySignal: true,
+    hasCorporateContact: true,
+    confidence: 95,
+    agentComment: "Факты собраны из 10 сайтов из выдачи Яндекса; перед коммерческим контактом нужна ручная проверка актуальности.",
+  },
+};
+
+function enrichKnownLeadProfile(lead: Lead): Lead {
+  const profile = knownLeadProfiles[lead.inn];
+  return profile ? { ...lead, ...profile } : lead;
+}
+
 function scoreLead(lead: Lead) {
+  const enriched = enrichKnownLeadProfile(lead);
   return {
-    ...lead,
-    score: scoreCompany(lead),
+    ...enriched,
+    score: scoreCompany(enriched),
   };
 }
 
@@ -117,7 +174,8 @@ export async function getLeads() {
   const sql = getSql();
   if (!sql) {
     // ponytail: merge seed so volatile EGRUL search cannot break direct lead URLs.
-    return remember(dedupeCompanies([...(await fetchEgrulRostovLeads()), ...leads])).map(scoreLead);
+    const known = Object.keys(knownLeadProfiles).map(fallbackLeadFromInn);
+    return remember(dedupeCompanies([...known, ...(await fetchEgrulRostovLeads()), ...leads])).map(scoreLead);
   }
 
   const rows = await sql`
