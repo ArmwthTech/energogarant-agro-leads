@@ -2,27 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  AlertTriangle,
   ArrowUp,
   ArrowDownUp,
-  Building2,
-  CalendarClock,
   Download,
-  ExternalLink,
-  FileSearch,
   Gauge,
-  Globe,
-  MapPinned,
-  MessageCircle,
   RefreshCw,
   Search,
   Settings,
-  ShieldCheck,
   TableProperties,
   Users,
 } from "lucide-react";
 import { type Lead, statusLabels } from "@/data/sample";
-import { filterLeadRows, safeSourceUrl, type ScoreResult } from "@/domain/agro";
+import { filterLeadRows, type ScoreResult } from "@/domain/agro";
 
 type ScoredLead = Lead & { score: ScoreResult };
 type ContactLookup = {
@@ -33,11 +24,11 @@ type ContactLookup = {
 };
 
 const nav = [
-  { label: "Лиды", icon: TableProperties, active: true },
-  { label: "Импорт", icon: RefreshCw },
-  { label: "Отчеты", icon: Gauge },
-  { label: "Агенты", icon: Users },
-  { label: "Настройки", icon: Settings },
+  { label: "Лиды", icon: TableProperties, href: "/", active: true },
+  { label: "Импорт", icon: RefreshCw, href: "/import" },
+  { label: "Отчеты", icon: Gauge, href: "/reports" },
+  { label: "Агенты", icon: Users, href: "/agents" },
+  { label: "Настройки", icon: Settings, href: "/settings" },
 ];
 
 function rub(value: number) {
@@ -45,18 +36,6 @@ function rub(value: number) {
     notation: "compact",
     maximumFractionDigits: 1,
   }).format(value);
-}
-
-function leadSearchLinks(lead: ScoredLead) {
-  const base = `${lead.shortName} ${lead.inn} Ростовская область`;
-  return [
-    ["Сайт", Globe, lead.website || ""],
-    ["Яндекс", Search, `https://yandex.ru/search/?text=${encodeURIComponent(`${base} официальный сайт контакты`)}`],
-    ["Google", Search, `https://www.google.com/search?q=${encodeURIComponent(base)}`],
-    ["VK", MessageCircle, `https://vk.com/search?c%5Bq%5D=${encodeURIComponent(base)}&c%5Bsection%5D=communities`],
-    ["OK", MessageCircle, `https://ok.ru/search?st.query=${encodeURIComponent(base)}`],
-    ["2ГИС", MapPinned, `https://2gis.ru/search/${encodeURIComponent(base)}`],
-  ] as const;
 }
 
 export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
@@ -67,6 +46,8 @@ export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
   const [sort, setSort] = useState<"priority_desc" | "priority_asc">("priority_desc");
   const [selectedId, setSelectedId] = useState(leads[0]?.id ?? "");
   const [contactStatus, setContactStatus] = useState("idle");
+  const [activeLookup, setActiveLookup] = useState(false);
+  const [loadingLive, setLoadingLive] = useState(true);
 
   useEffect(() => {
     fetch("/api/leads")
@@ -74,7 +55,8 @@ export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
       .then((body: { leads?: ScoredLead[] }) => {
         if (body.leads?.length) setItems(body.leads);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoadingLive(false));
   }, []);
 
   const kinds = useMemo(() => Array.from(new Set(items.map((lead) => lead.okved))).sort(), [items]);
@@ -91,7 +73,7 @@ export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
   };
 
   useEffect(() => {
-    if (!selectedLead?.inn || selectedLead.phone || selectedLead.corporateEmail || selectedLead.website) return;
+    if (!activeLookup || !selectedLead?.inn || selectedLead.phone || selectedLead.corporateEmail || selectedLead.website) return;
     setContactStatus("searching");
     fetch(`/api/contacts?inn=${selectedLead.inn}`)
       .then((response) => response.json())
@@ -112,7 +94,31 @@ export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
         setContactStatus(contact.phone || contact.corporateEmail || contact.website ? "done" : "empty");
       })
       .catch(() => setContactStatus("empty"));
-  }, [selectedLead]);
+  }, [selectedLead, activeLookup]);
+
+  async function lookupVisibleContacts() {
+    setActiveLookup(true);
+    setContactStatus("searching");
+    for (const lead of filtered.filter((item) => !item.phone && !item.corporateEmail && !item.website).slice(0, 20)) {
+      try {
+        const contact = (await fetch(`/api/contacts?inn=${lead.inn}`).then((response) => response.json())) as ContactLookup;
+        setItems((current) =>
+          current.map((item) =>
+            item.inn === lead.inn
+              ? {
+                  ...item,
+                  phone: contact.phone || item.phone,
+                  corporateEmail: contact.corporateEmail || item.corporateEmail,
+                  website: contact.website || item.website,
+                  hasCorporateContact: Boolean(contact.phone || contact.corporateEmail || item.hasCorporateContact),
+                }
+              : item,
+          ),
+        );
+      } catch {}
+    }
+    setContactStatus("done");
+  }
 
   if (!selectedLead) {
     return (
@@ -144,8 +150,9 @@ export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
           </div>
           <nav className="flex flex-col gap-2 p-3">
             {nav.map((item) => (
-              <button
+              <a
                 key={item.label}
+                href={item.href}
                 className={`grid h-12 place-items-center rounded-md border text-[#667085] transition ${
                   item.active
                     ? "border-[#c8102e] bg-[#fff1f3] text-[#c8102e]"
@@ -154,7 +161,7 @@ export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
                 title={item.label}
               >
                 <item.icon size={20} />
-              </button>
+              </a>
             ))}
           </nav>
         </aside>
@@ -165,13 +172,23 @@ export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
               <div className="text-xs font-bold uppercase tracking-[0.18em] text-[#c8102e]">ЭНЕРГОГАРАНТ</div>
               <h1 className="text-xl font-semibold">Лиды АПК Ростовская область</h1>
             </div>
-            <a
-              href="/api/export"
-              className="inline-flex h-10 items-center gap-2 rounded-md bg-[#c8102e] px-3 text-sm font-semibold text-white hover:bg-[#9f0d24]"
-            >
-              <Download size={16} />
-              Экспорт XLSX
-            </a>
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="inline-flex h-10 items-center gap-2 rounded-md border border-[#d9dde5] bg-white px-3 text-sm font-semibold hover:border-[#c8102e] hover:text-[#c8102e]"
+                onClick={lookupVisibleContacts}
+                type="button"
+              >
+                <RefreshCw size={16} />
+                {contactStatus === "searching" ? "Проверяю..." : "Проверить контакты"}
+              </button>
+              <a
+                href="/api/export"
+                className="inline-flex h-10 items-center gap-2 rounded-md bg-[#c8102e] px-3 text-sm font-semibold text-white hover:bg-[#9f0d24]"
+              >
+                <Download size={16} />
+                Экспорт XLSX
+              </a>
+            </div>
           </header>
 
           <div className="border-b border-[#d9dde5] bg-white px-5 py-3">
@@ -221,7 +238,7 @@ export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
 
           <div className="grid grid-cols-2 gap-3 px-5 py-4 xl:grid-cols-4">
             {[
-              ["Всего", String(stats.total), "ЕГРЮЛ ФНС"],
+              ["Всего", loadingLive ? `${stats.total}+` : String(stats.total), loadingLive ? "загружаю ЕГРЮЛ" : "ЕГРЮЛ ФНС"],
               ["В фильтре", String(stats.filtered), "сейчас показано"],
               ["Высокий приоритет", String(stats.high), "70+ баллов"],
               ["Контакты", String(stats.contacts), "только проверенные"],
@@ -236,7 +253,17 @@ export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
 
           <div className="px-5 pb-5">
             <div className="overflow-x-auto rounded-md border border-[#d9dde5] bg-white">
-              <table className="min-w-[980px] border-collapse text-left text-sm">
+              <table className="w-full min-w-[1120px] table-fixed border-collapse text-left text-sm">
+                <colgroup>
+                  <col className="w-[96px]" />
+                  <col className="w-[300px]" />
+                  <col className="w-[96px]" />
+                  <col className="w-[90px]" />
+                  <col className="w-[120px]" />
+                  <col className="w-[140px]" />
+                  <col className="w-[104px]" />
+                  <col className="w-[174px]" />
+                </colgroup>
                 <thead className="bg-[#f6f7f9] text-xs uppercase text-[#667085]">
                   <tr>
                     {["Приоритет", "Компания", "ИНН", "Тип", "Контакт", "Потенциал", "Статус", "Источник"].map((head) => (
@@ -266,7 +293,7 @@ export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
                       </td>
                       <td className="max-w-[260px] px-3 py-3">
                         <a
-                          className="truncate font-semibold hover:text-[#c8102e]"
+                          className="block truncate font-semibold hover:text-[#c8102e]"
                           href={`/lead/${lead.inn}`}
                           target="_blank"
                           rel="noreferrer"
@@ -288,7 +315,7 @@ export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
                       <td className="px-3 py-3">
                         <span className="rounded-md border border-[#d9dde5] px-2 py-1 text-xs">{statusLabels[lead.status]}</span>
                       </td>
-                      <td className="px-3 py-3 text-xs text-[#667085]">{lead.source}</td>
+                      <td className="truncate px-3 py-3 text-xs text-[#667085]">{lead.source}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -298,145 +325,6 @@ export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
           </div>
         </section>
 
-        <aside className="border-t border-[#d9dde5] bg-white lg:col-start-2">
-          <div className="flex h-16 items-center justify-between border-b border-[#d9dde5] px-4">
-            <div>
-              <div className="text-xs text-[#667085]">Карточка лида</div>
-              <h2 className="line-clamp-1 text-lg font-semibold">{selectedLead.shortName}</h2>
-            </div>
-            <a
-              className="inline-flex h-9 items-center gap-2 rounded-md border border-[#d9dde5] px-3 text-sm hover:border-[#c8102e] hover:text-[#c8102e]"
-              href={`/lead/${selectedLead.inn}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <Building2 className="text-[#c8102e]" size={18} />
-              Открыть
-            </a>
-          </div>
-
-          <div className="space-y-4 p-4">
-            <div className="rounded-md border border-[#f0c8d0] bg-[#fff8f8] p-3">
-              <div className="flex gap-2 text-sm font-semibold text-[#9f0d24]">
-                <AlertTriangle size={17} />
-                Непроверенные данные не считать согласием на рассылку
-              </div>
-              <p className="mt-2 text-xs leading-5 text-[#667085]">
-                Персональные контакты скрываются из XLSX до ручной проверки.
-              </p>
-            </div>
-
-            <section>
-              <h3 className="mb-2 text-sm font-semibold">Реквизиты</h3>
-              <dl className="grid grid-cols-2 gap-2 text-sm">
-                <div>
-                  <dt className="text-xs text-[#667085]">ИНН</dt>
-                  <dd className="font-mono">{selectedLead.inn}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-[#667085]">ОГРН</dt>
-                  <dd className="font-mono">{selectedLead.ogrn}</dd>
-                </div>
-                <div className="col-span-2">
-                  <dt className="text-xs text-[#667085]">Руководитель</dt>
-                  <dd>{selectedLead.director}</dd>
-                </div>
-              </dl>
-            </section>
-
-            <section>
-              <h3 className="mb-2 text-sm font-semibold">Контакты</h3>
-              <div className="rounded-md border border-[#d9dde5] p-3 text-sm">
-                <div>{selectedLead.phone || "Телефон не найден в открытых источниках"}</div>
-                <div className="mt-1 text-[#667085]">
-                  {selectedLead.corporateEmail || "Email не найден в открытых источниках"}
-                </div>
-                <div className="mt-2 text-xs text-[#667085]">
-                  {contactStatus === "searching" && "Ищу сайт, телефон и email..."}
-                  {contactStatus === "empty" && "Открытая проверка не нашла контакты."}
-                  {contactStatus === "done" && "Найдено автоматически, требуется ручная проверка."}
-                </div>
-              </div>
-            </section>
-
-            <section>
-              <h3 className="mb-2 text-sm font-semibold">Страховой интерес</h3>
-              <div className="rounded-md border border-[#d9dde5] p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">Приоритет</span>
-                  <strong className="text-2xl text-[#c8102e]">{selectedLead.score.priorityScore}</strong>
-                </div>
-                <p className="mt-2 text-sm text-[#667085]">{selectedLead.score.explanation}</p>
-                <div className="mt-3 text-sm">
-                  Бюджет: {rub(selectedLead.score.budgetRangeRub[0])}-{rub(selectedLead.score.budgetRangeRub[1])} руб.
-                </div>
-              </div>
-            </section>
-
-            <section>
-              <h3 className="mb-2 text-sm font-semibold">Источники</h3>
-              <a
-                className="flex items-center justify-between rounded-md border border-[#d9dde5] p-3 text-sm"
-                href={safeSourceUrl(selectedLead.sourceUrl)}
-                rel="noreferrer"
-                target="_blank"
-              >
-                <span className="inline-flex items-center gap-2">
-                  <FileSearch size={16} />
-                  {selectedLead.source}
-                </span>
-                <span className="font-mono text-xs">{selectedLead.confidence}%</span>
-              </a>
-            </section>
-
-            <section>
-              <h3 className="mb-2 text-sm font-semibold">Поиск сайта и соцсетей</h3>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {leadSearchLinks(selectedLead).map(([label, Icon, href]) =>
-                  href ? (
-                    <a
-                      key={label}
-                      className="inline-flex h-10 items-center justify-between gap-2 rounded-md border border-[#d9dde5] px-3 text-sm hover:border-[#c8102e] hover:text-[#c8102e]"
-                      href={href}
-                      rel="noreferrer"
-                      target="_blank"
-                    >
-                      <span className="inline-flex items-center gap-2">
-                        <Icon size={15} />
-                        {label}
-                      </span>
-                      <ExternalLink size={13} />
-                    </a>
-                  ) : (
-                    <span
-                      key={label}
-                      className="inline-flex h-10 items-center gap-2 rounded-md border border-[#d9dde5] px-3 text-sm text-[#98a2b3]"
-                    >
-                      <Icon size={15} />
-                      Сайт не найден
-                    </span>
-                  ),
-                )}
-              </div>
-            </section>
-
-            <section>
-              <h3 className="mb-2 text-sm font-semibold">Активность</h3>
-              <div className="flex gap-2 rounded-md border border-[#d9dde5] p-3 text-sm">
-                <CalendarClock size={16} className="mt-0.5 text-[#667085]" />
-                <div>
-                  <div>{selectedLead.agentComment}</div>
-                  <div className="text-xs text-[#667085]">Обновлено {selectedLead.lastUpdated}</div>
-                </div>
-              </div>
-            </section>
-
-            <div className="flex items-center gap-2 rounded-md bg-[#f6f7f9] p-3 text-xs text-[#667085]">
-              <ShieldCheck size={15} />
-              Расчетный потенциал не является подтвержденным бюджетом клиента.
-            </div>
-          </div>
-        </aside>
       </div>
     </main>
   );

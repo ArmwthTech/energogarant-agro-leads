@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ExternalLink, Search } from "lucide-react";
 import { findLeadContacts, mergeContactInfo } from "@/lib/contact-enrichment";
+import { leads } from "@/data/sample";
 import { getLeads } from "@/lib/repository";
 
 export const dynamic = "force-dynamic";
@@ -11,10 +13,25 @@ export default async function LeadPage({
   params: Promise<{ inn: string }>;
 }) {
   const { inn } = await params;
-  const lead = (await getLeads()).find((item) => item.inn === inn.replace(/\D/g, ""));
+  const cleanInn = inn.replace(/\D/g, "");
+  const lead = leads.find((item) => item.inn === cleanInn) ?? (await getLeads()).find((item) => item.inn === cleanInn);
   if (!lead) notFound();
 
-  const enriched = mergeContactInfo(lead, await findLeadContacts(lead));
+  const contactInfo = await Promise.race([
+    findLeadContacts(lead),
+    new Promise<Awaited<ReturnType<typeof findLeadContacts>>>((resolve) =>
+      setTimeout(() => resolve({ phone: "", corporateEmail: "", website: "", contactSourceUrl: "" }), 6000),
+    ),
+  ]);
+  const enriched = mergeContactInfo(lead, contactInfo);
+  const query = `${enriched.shortName} ${enriched.inn} Ростовская область`;
+  const links = [
+    ["Яндекс", `https://yandex.ru/search/?text=${encodeURIComponent(`${query} официальный сайт телефон email`)}`],
+    ["Google", `https://www.google.com/search?q=${encodeURIComponent(`${query} официальный сайт контакты`)}`],
+    ["VK", `https://vk.com/search?c%5Bq%5D=${encodeURIComponent(query)}&c%5Bsection%5D=communities`],
+    ["OK", `https://ok.ru/search?st.query=${encodeURIComponent(query)}`],
+    ["2ГИС", `https://2gis.ru/search/${encodeURIComponent(query)}`],
+  ];
 
   return (
     <main className="min-h-screen bg-[#f6f7f9] p-5 text-[#1d1d1f]">
@@ -63,6 +80,27 @@ export default async function LeadPage({
               ) : (
                 <div className="mt-2 text-[#667085]">Официальный сайт не найден</div>
               )}
+            </div>
+          </section>
+
+          <section className="md:col-span-2">
+            <h2 className="mb-2 text-sm font-semibold">Поиск сайта и соцсетей</h2>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+              {links.map(([label, href]) => (
+                <a
+                  key={label}
+                  className="inline-flex h-10 items-center justify-between rounded-md border border-[#d9dde5] px-3 text-sm hover:border-[#c8102e] hover:text-[#c8102e]"
+                  href={href}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <Search size={15} />
+                    {label}
+                  </span>
+                  <ExternalLink size={13} />
+                </a>
+              ))}
             </div>
           </section>
         </div>

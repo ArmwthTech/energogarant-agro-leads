@@ -1,5 +1,5 @@
-import type { Lead } from "@/data/sample";
-import { scoreCompany } from "@/domain/agro";
+import { leads, type Lead } from "@/data/sample";
+import { dedupeCompanies, scoreCompany } from "@/domain/agro";
 import { getSql } from "@/lib/db";
 import { fetchEgrulRostovLeads } from "@/lib/egrul";
 import type { OfficialLeadFact } from "@/lib/sources";
@@ -67,8 +67,8 @@ function mapDbLead(row: DbLead): Lead {
 export async function getLeads() {
   const sql = getSql();
   if (!sql) {
-    // ponytail: live EGRUL first, static seed only if the official source flakes.
-    return (await fetchEgrulRostovLeads()).map((lead) => ({
+    // ponytail: merge seed so volatile EGRUL search cannot break direct lead URLs.
+    return dedupeCompanies([...(await fetchEgrulRostovLeads()), ...leads]).map((lead) => ({
       ...lead,
       score: scoreCompany(lead),
     }));

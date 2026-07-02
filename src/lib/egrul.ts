@@ -13,16 +13,36 @@ const EGRUL_URL = "https://egrul.nalog.ru/";
 const QUERIES = [
   "СПК КОЛХОЗ",
   "СЕЛЬСКОХОЗЯЙСТВЕННЫЙ ПРОИЗВОДСТВЕННЫЙ КООПЕРАТИВ",
+  "СЕЛЬХОЗКООПЕРАТИВ",
+  "СХА",
+  "СХП",
   "ООО АГРО",
   "ООО АГРОФИРМА",
+  "АГРО",
+  "АГРОКОМПЛЕКС",
+  "АГРОСОЮЗ",
+  "АГРОПРОМ",
   "КФХ",
+  "КРЕСТЬЯНСКОЕ ФЕРМЕРСКОЕ ХОЗЯЙСТВО",
+  "ФЕРМЕРСКОЕ ХОЗЯЙСТВО",
   "КОЛХОЗ",
   "ЗЕРНО",
+  "ЗЕРНОВОЙ",
+  "ХЛЕБ",
   "АПК",
+  "СЕЛЬХОЗ",
   "РАСТЕНИЕВОДСТВО",
   "ФЕРМЕР",
   "ЭЛЕВАТОР",
   "СЕМЕНА",
+  "ПЛЕМ",
+  "МОЛОКО",
+  "МЯСО",
+  "ОВОЩ",
+  "САД",
+  "ВИНОГРАД",
+  "ПТИЦ",
+  "РЫБ",
 ];
 
 let cache: { at: number; leads: Lead[] } | null = null;
@@ -111,6 +131,7 @@ export async function fetchEgrulRostovLeads() {
   for (const query of QUERIES) {
     try {
       rows.push(...(await egrulSearch(query)));
+      await new Promise((resolve) => setTimeout(resolve, 150));
     } catch {
       // ponytail: keep partial official data if one query/source flakes.
     }
@@ -120,6 +141,7 @@ export async function fetchEgrulRostovLeads() {
     rows.map(toLead).filter((lead): lead is Lead => Boolean(lead)),
   );
 
-  cache = { at: Date.now(), leads: realLeads.length ? realLeads : leads };
-  return cache.leads;
+  if (!realLeads.length) return leads;
+  cache = { at: Date.now(), leads: realLeads };
+  return realLeads;
 }
