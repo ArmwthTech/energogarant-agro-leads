@@ -25,6 +25,12 @@ import { type Lead, statusLabels } from "@/data/sample";
 import { filterLeadRows, safeSourceUrl, type ScoreResult } from "@/domain/agro";
 
 type ScoredLead = Lead & { score: ScoreResult };
+type ContactLookup = {
+  phone: string;
+  corporateEmail: string;
+  website: string;
+  contactSourceUrl: string;
+};
 
 const nav = [
   { label: "Лиды", icon: TableProperties, active: true },
@@ -43,10 +49,9 @@ function rub(value: number) {
 
 function leadSearchLinks(lead: ScoredLead) {
   const base = `${lead.shortName} ${lead.inn} Ростовская область`;
-  const site = `${base} официальный сайт контакты`;
   return [
-    ["Сайт", Globe, `https://www.google.com/search?q=${encodeURIComponent(site)}`],
-    ["Яндекс", Search, `https://yandex.ru/search/?text=${encodeURIComponent(site)}`],
+    ["Сайт", Globe, lead.website || ""],
+    ["Яндекс", Search, `https://yandex.ru/search/?text=${encodeURIComponent(`${base} официальный сайт контакты`)}`],
     ["Google", Search, `https://www.google.com/search?q=${encodeURIComponent(base)}`],
     ["VK", MessageCircle, `https://vk.com/search?c%5Bq%5D=${encodeURIComponent(base)}&c%5Bsection%5D=communities`],
     ["OK", MessageCircle, `https://ok.ru/search?st.query=${encodeURIComponent(base)}`],
@@ -61,6 +66,7 @@ export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
   const [status, setStatus] = useState("all");
   const [sort, setSort] = useState<"priority_desc" | "priority_asc">("priority_desc");
   const [selectedId, setSelectedId] = useState(leads[0]?.id ?? "");
+  const [contactStatus, setContactStatus] = useState("idle");
 
   useEffect(() => {
     fetch("/api/leads")
@@ -83,6 +89,30 @@ export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
     high: filtered.filter((lead) => lead.score.priorityScore >= 70).length,
     contacts: filtered.filter((lead) => lead.corporateEmail || lead.phone).length,
   };
+
+  useEffect(() => {
+    if (!selectedLead?.inn || selectedLead.phone || selectedLead.corporateEmail || selectedLead.website) return;
+    setContactStatus("searching");
+    fetch(`/api/contacts?inn=${selectedLead.inn}`)
+      .then((response) => response.json())
+      .then((contact: ContactLookup) => {
+        setItems((current) =>
+          current.map((lead) =>
+            lead.inn === selectedLead.inn
+              ? {
+                  ...lead,
+                  phone: contact.phone || lead.phone,
+                  corporateEmail: contact.corporateEmail || lead.corporateEmail,
+                  website: contact.website || lead.website,
+                  hasCorporateContact: Boolean(contact.phone || contact.corporateEmail || lead.hasCorporateContact),
+                }
+              : lead,
+          ),
+        );
+        setContactStatus(contact.phone || contact.corporateEmail || contact.website ? "done" : "empty");
+      })
+      .catch(() => setContactStatus("empty"));
+  }, [selectedLead]);
 
   if (!selectedLead) {
     return (
@@ -235,12 +265,23 @@ export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
                         </span>
                       </td>
                       <td className="max-w-[260px] px-3 py-3">
-                        <div className="truncate font-semibold">{lead.shortName}</div>
+                        <a
+                          className="truncate font-semibold hover:text-[#c8102e]"
+                          href={`/lead/${lead.inn}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          {lead.shortName}
+                        </a>
                         <div className="truncate text-xs text-[#667085]">{lead.name}</div>
                       </td>
                       <td className="px-3 py-3 font-mono text-xs">{lead.inn}</td>
                       <td className="px-3 py-3">{lead.okved}</td>
-                      <td className="px-3 py-3 text-xs text-[#667085]">нет проверенного контакта</td>
+                      <td className="px-3 py-3 text-xs text-[#667085]">
+                        <div>{lead.phone || "телефон не найден"}</div>
+                        <div>{lead.corporateEmail || "email не найден"}</div>
+                      </td>
                       <td className="px-3 py-3">
                         {rub(lead.score.budgetRangeRub[0])}-{rub(lead.score.budgetRangeRub[1])}
                       </td>
@@ -263,7 +304,15 @@ export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
               <div className="text-xs text-[#667085]">Карточка лида</div>
               <h2 className="line-clamp-1 text-lg font-semibold">{selectedLead.shortName}</h2>
             </div>
-            <Building2 className="text-[#c8102e]" size={22} />
+            <a
+              className="inline-flex h-9 items-center gap-2 rounded-md border border-[#d9dde5] px-3 text-sm hover:border-[#c8102e] hover:text-[#c8102e]"
+              href={`/lead/${selectedLead.inn}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <Building2 className="text-[#c8102e]" size={18} />
+              Открыть
+            </a>
           </div>
 
           <div className="space-y-4 p-4">
@@ -293,6 +342,21 @@ export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
                   <dd>{selectedLead.director}</dd>
                 </div>
               </dl>
+            </section>
+
+            <section>
+              <h3 className="mb-2 text-sm font-semibold">Контакты</h3>
+              <div className="rounded-md border border-[#d9dde5] p-3 text-sm">
+                <div>{selectedLead.phone || "Телефон не найден в открытых источниках"}</div>
+                <div className="mt-1 text-[#667085]">
+                  {selectedLead.corporateEmail || "Email не найден в открытых источниках"}
+                </div>
+                <div className="mt-2 text-xs text-[#667085]">
+                  {contactStatus === "searching" && "Ищу сайт, телефон и email..."}
+                  {contactStatus === "empty" && "Открытая проверка не нашла контакты."}
+                  {contactStatus === "done" && "Найдено автоматически, требуется ручная проверка."}
+                </div>
+              </div>
             </section>
 
             <section>
@@ -328,21 +392,31 @@ export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
             <section>
               <h3 className="mb-2 text-sm font-semibold">Поиск сайта и соцсетей</h3>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {leadSearchLinks(selectedLead).map(([label, Icon, href]) => (
-                  <a
-                    key={label}
-                    className="inline-flex h-10 items-center justify-between gap-2 rounded-md border border-[#d9dde5] px-3 text-sm hover:border-[#c8102e] hover:text-[#c8102e]"
-                    href={href}
-                    rel="noreferrer"
-                    target="_blank"
-                  >
-                    <span className="inline-flex items-center gap-2">
+                {leadSearchLinks(selectedLead).map(([label, Icon, href]) =>
+                  href ? (
+                    <a
+                      key={label}
+                      className="inline-flex h-10 items-center justify-between gap-2 rounded-md border border-[#d9dde5] px-3 text-sm hover:border-[#c8102e] hover:text-[#c8102e]"
+                      href={href}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        <Icon size={15} />
+                        {label}
+                      </span>
+                      <ExternalLink size={13} />
+                    </a>
+                  ) : (
+                    <span
+                      key={label}
+                      className="inline-flex h-10 items-center gap-2 rounded-md border border-[#d9dde5] px-3 text-sm text-[#98a2b3]"
+                    >
                       <Icon size={15} />
-                      {label}
+                      Сайт не найден
                     </span>
-                    <ExternalLink size={13} />
-                  </a>
-                ))}
+                  ),
+                )}
               </div>
             </section>
 

@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import { buildExportColumns } from "@/domain/agro";
+import { getCachedContactInfo } from "@/lib/contact-enrichment";
 import { getLeads } from "@/lib/repository";
 
 export async function buildLeadWorkbook() {
@@ -7,18 +8,22 @@ export async function buildLeadWorkbook() {
     includePersonalContacts: true,
     personalContactsVerified: false,
   });
-  const rows = (await getLeads()).map((lead) => ({
-    priority: lead.score.priorityScore,
-    company: lead.name,
-    inn: lead.inn,
-    district: lead.district,
-    corporateEmail: lead.corporateEmail,
-    phone: lead.phone,
-    potential: `${lead.score.budgetRangeRub[0]}-${lead.score.budgetRangeRub[1]}`,
-    status: lead.status,
-    source: lead.source,
-    agentComment: lead.agentComment,
-  }));
+  const rows = (await getLeads()).map((lead) => {
+    const contact = getCachedContactInfo(lead.inn);
+    return {
+      priority: lead.score.priorityScore,
+      company: lead.name,
+      inn: lead.inn,
+      district: lead.district,
+      corporateEmail: contact?.corporateEmail || lead.corporateEmail,
+      phone: contact?.phone || lead.phone,
+      website: contact?.website || lead.website,
+      potential: `${lead.score.budgetRangeRub[0]}-${lead.score.budgetRangeRub[1]}`,
+      status: lead.status,
+      source: lead.source,
+      agentComment: lead.agentComment,
+    };
+  });
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet("Лиды");
   worksheet.columns = columns.map((key) => ({

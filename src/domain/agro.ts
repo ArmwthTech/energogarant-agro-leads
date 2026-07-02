@@ -111,6 +111,7 @@ export function buildExportColumns(options: {
     "district",
     "corporateEmail",
     "phone",
+    "website",
     "potential",
     "status",
     "source",

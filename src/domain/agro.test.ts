@@ -10,6 +10,7 @@ import {
   validateCronSecret,
 } from "./agro";
 import { parseOpenCompanyRows } from "@/lib/parser";
+import { extractContacts } from "@/lib/contact-enrichment";
 
 assert.equal(normalizeInn(" 61-60 123456 "), "6160123456");
 
@@ -45,6 +46,7 @@ const columns = buildExportColumns({
 
 assert.ok(!columns.includes("personalPhone"));
 assert.ok(columns.includes("corporateEmail"));
+assert.ok(columns.includes("website"));
 
 const parsed = parseOpenCompanyRows([
   ["61-23-012450", " СПК Колхоз имени Кирова ", "https://egrul.nalog.ru/"],
@@ -87,6 +89,11 @@ assert.deepEqual(
 assert.equal(validateCronSecret(undefined, undefined).status, 500);
 assert.equal(validateCronSecret("secret", undefined).status, 401);
 assert.equal(validateCronSecret("secret", "Bearer secret").status, 200);
+
+assert.deepEqual(
+  extractContacts("Телефон +7 (863) 123-45-67, email office@agro-don.ru"),
+  { phone: "+7 (863) 123-45-67", corporateEmail: "office@agro-don.ru" },
+);
 
 const filtered = filterLeadRows(
   [
