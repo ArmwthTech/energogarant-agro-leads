@@ -39,6 +39,26 @@ const globalLeads = globalThis as typeof globalThis & {
 const leadMemory = globalLeads.__energogarantLeadMemory ?? new Map<string, Lead>();
 globalLeads.__energogarantLeadMemory = leadMemory;
 
+function yandexDomainSources(lead: Pick<Lead, "inn" | "ogrn" | "shortName">) {
+  const query = `${lead.inn} ${lead.ogrn} ${lead.shortName}`;
+  const domains = [
+    ["Checko", "checko.ru"],
+    ["РБК Компании", "companies.rbc.ru"],
+    ["СПАРК", "spark-interfax.ru"],
+    ["BBNT", "bbnt.ru"],
+    ["Audit-it", "audit-it.ru"],
+    ["VBankCenter", "vbankcenter.ru"],
+    ["Saby", "saby.ru"],
+    ["Companium", "companium.ru"],
+    ["Inndex", "inndex.ru"],
+    ["Agrobase", "agrobase.ru"],
+  ];
+  return domains.map(([label, domain]) => ({
+    label,
+    url: `https://yandex.ru/search/?text=${encodeURIComponent(`site:${domain} ${query}`)}`,
+  }));
+}
+
 export const knownLeadProfiles: Record<string, Partial<Lead>> = {
   // ponytail: public facts found manually; replace with persisted source_facts when DB is wired.
   "6122006924": {
@@ -88,11 +108,58 @@ export const knownLeadProfiles: Record<string, Partial<Lead>> = {
     confidence: 95,
     agentComment: "Факты собраны из 10 сайтов из выдачи Яндекса; перед коммерческим контактом нужна ручная проверка актуальности.",
   },
+  "6119001066": {
+    shortName: 'СПК-КОЛХОЗ "МАЯК"',
+    ogrn: "1026101233949",
+    address: "346976, Ростовская область, Матвеево-Курганский район, с. Каменно-Андрианово, ул. Центральная, д. 48/1",
+    okved: "Выращивание зерновых культур; всего 13 видов деятельности",
+    director: "ПРЕДСЕДАТЕЛЬ: Кулиш Сергей Николаевич",
+    phone: "3-34-23; +7 (863) 412-33-48; +7 (863) 413-34-23",
+    corporateEmail: "mayak888@mail.ru",
+    revenueRub: 240_000_000,
+    assetsRub: 336_000_000,
+    netProfitRub: -24_700_000,
+    financialYear: "2025",
+    financialSourceUrl: "https://www.audit-it.ru/contragent/1026101233949_spk-kolkhoz-mayak",
+    activities: ["Выращивание зерновых культур", "Всего 13 видов деятельности"],
+    source: "Яндекс top-10: List-Org, Checko, Audit-it, Spark, T-Банк",
+    sourceUrl: "https://yandex.ru/search/?text=6119001066%20%D0%A1%D0%9F%D0%9A%20%D0%9C%D0%90%D0%AF%D0%9A",
+    hasCropOkved: true,
+    hasMachinerySignal: true,
+    hasCorporateContact: true,
+    confidence: 90,
+    agentComment: "Контакты найдены в List-Org; адрес/ОКВЭД сверены по Spark/T-Банк; финансы требуют ручной проверки перед предложением.",
+  },
+  "6102014170": {
+    shortName: 'СПК "КОЛХОЗ ДОНСКОЙ"',
+    ogrn: "1026100663885",
+    address: "346706, Ростовская область, Аксайский район, хутор Черюмкин",
+    okved: "Выращивание зерновых культур; всего 5 видов деятельности",
+    director: "ПРЕДСЕДАТЕЛЬ: Кротов Андрей Викторович",
+    phone: "+7 863 502-88-46",
+    revenueRub: 65_100_000,
+    assetsRub: 120_700_000,
+    netProfitRub: 5_300_000,
+    financialYear: "2024",
+    financialSourceUrl: "https://checko.ru/company/spk-kolhoz-donskoy-1026100663885",
+    activities: ["Выращивание зерновых культур", "Всего 5 видов деятельности"],
+    source: "Яндекс top-10: РБК, Spark, Checko, Companium, Saby, T-Банк",
+    sourceUrl: "https://yandex.ru/search/?text=6102014170%20%D0%A1%D0%9F%D0%9A%20%D0%94%D0%9E%D0%9D%D0%A1%D0%9A%D0%9E%D0%99",
+    hasCropOkved: true,
+    hasMachinerySignal: true,
+    hasCorporateContact: true,
+    confidence: 90,
+    agentComment: "Контакт найден в Companium; адрес/ОКВЭД сверены по РБК/Spark/T-Банк; финансы из Checko.",
+  },
 };
 
 function enrichKnownLeadProfile(lead: Lead): Lead {
   const profile = knownLeadProfiles[lead.inn];
-  return profile ? { ...lead, ...profile } : lead;
+  const enriched = profile ? { ...lead, ...profile } : lead;
+  return {
+    ...enriched,
+    publicSources: enriched.publicSources?.length ? enriched.publicSources : yandexDomainSources(enriched),
+  };
 }
 
 function scoreLead(lead: Lead) {

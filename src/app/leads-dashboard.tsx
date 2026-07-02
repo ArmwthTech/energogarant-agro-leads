@@ -29,6 +29,7 @@ type ContactLookup = {
   contactStatus: string;
   contactConfidence: number;
   contactSourceType: string;
+  candidates?: { value: string; kind: "phone" | "email" | "website" }[];
 };
 
 const nav = [
@@ -44,6 +45,32 @@ function rub(value: number) {
     notation: "compact",
     maximumFractionDigits: 1,
   }).format(value);
+}
+
+function multiContact(lead: ScoredLead, kind: "phone" | "email") {
+  const raw = kind === "phone" ? lead.phone : lead.corporateEmail;
+  return raw
+    .split(";")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function lookupValues(contact: ContactLookup, kind: "phone" | "email" | "website", fallback: string) {
+  const seen = new Set<string>();
+  return [
+    ...fallback.split(";"),
+    contact[kind === "email" ? "corporateEmail" : kind],
+    ...(contact.candidates ?? []).filter((item) => item.kind === kind).map((item) => item.value),
+  ]
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .filter((value) => {
+      const key = kind === "phone" ? value.replace(/\D/g, "") || value.toLowerCase() : value.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .join("; ");
 }
 
 export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
@@ -91,9 +118,9 @@ export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
             lead.inn === selectedLead.inn
               ? {
                   ...lead,
-                  phone: contact.phone || lead.phone,
-                  corporateEmail: contact.corporateEmail || lead.corporateEmail,
-                  website: contact.website || lead.website,
+                  phone: lookupValues(contact, "phone", lead.phone),
+                  corporateEmail: lookupValues(contact, "email", lead.corporateEmail),
+                  website: lookupValues(contact, "website", lead.website),
                   hasCorporateContact: Boolean(contact.phone || contact.corporateEmail || lead.hasCorporateContact),
                   contactStatus: contact.contactStatus,
                   contactConfidence: contact.contactConfidence,
@@ -118,9 +145,9 @@ export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
             item.inn === lead.inn
               ? {
                   ...item,
-                  phone: contact.phone || item.phone,
-                  corporateEmail: contact.corporateEmail || item.corporateEmail,
-                  website: contact.website || item.website,
+                  phone: lookupValues(contact, "phone", item.phone),
+                  corporateEmail: lookupValues(contact, "email", item.corporateEmail),
+                  website: lookupValues(contact, "website", item.website),
                   hasCorporateContact: Boolean(contact.phone || contact.corporateEmail || item.hasCorporateContact),
                   contactStatus: contact.contactStatus,
                   contactConfidence: contact.contactConfidence,
@@ -320,8 +347,8 @@ export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
                       <td className="px-3 py-3 font-mono text-xs">{lead.inn}</td>
                       <td className="px-3 py-3">{lead.okved}</td>
                       <td className="px-3 py-3 text-xs text-[#667085]">
-                        <div>{lead.phone || "телефон не найден"}</div>
-                        <div>{lead.corporateEmail || "email не найден"}</div>
+                        <div>{multiContact(lead, "phone").join("; ") || "телефон не найден"}</div>
+                        <div>{multiContact(lead, "email").join("; ") || "email не найден"}</div>
                         {lead.contactStatus && (
                           <div className="mt-1 text-[11px] text-[#c8102e]">
                             {lead.contactStatus} · {lead.contactConfidence}% · {lead.contactSourceType}

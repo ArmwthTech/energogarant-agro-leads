@@ -112,6 +112,10 @@ assert.deepEqual(
   extractContacts("Телефоны (86349) 2-62-71; (928) 123-32-85, email office@agro-don.ru"),
   { phone: "(86349) 2-62-71", corporateEmail: "office@agro-don.ru" },
 );
+assert.equal(
+  extractContacts("8535 310 1084 971 594 6363 8254 1003 отчетность 8 (800) 222-44-14").phone,
+  "",
+);
 
 assert.deepEqual(
   buildContactCandidates(
@@ -219,3 +223,23 @@ assert.equal(
   knownLeadProfiles["6122006924"].financialSourceUrl,
   "https://companies.rbc.ru/id/1026101312710-spk-spk-kolhoz-kolos/",
 );
+assert.equal(knownLeadProfiles["6119001066"].corporateEmail, "mayak888@mail.ru");
+assert.equal(knownLeadProfiles["6102014170"].phone, "+7 863 502-88-46");
+
+findLeadContacts({
+  ...fallbackLeadFromInn("6119001066"),
+  shortName: 'СПК-КОЛХОЗ "МАЯК"',
+  ogrn: "1026101233949",
+})
+  .then((mayakContacts) => {
+    assert.deepEqual(contactValues(mayakContacts, "phone"), [
+      "3-34-23",
+      "+7 (863) 412-33-48",
+      "+7 (863) 413-34-23",
+    ]);
+    assert.deepEqual(contactValues(mayakContacts, "email"), ["mayak888@mail.ru"]);
+  })
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });

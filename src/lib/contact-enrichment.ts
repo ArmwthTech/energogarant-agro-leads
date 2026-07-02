@@ -112,6 +112,50 @@ const publicContactHints: Record<string, ContactCandidate[]> = {
       status: "found",
     },
   ],
+  "6119001066": [
+    {
+      value: "3-34-23",
+      kind: "phone",
+      sourceType: "directory",
+      sourceUrl: "https://www.list-org.com/company/37022",
+      confidence: 70,
+      status: "found",
+    },
+    {
+      value: "+7 (863) 412-33-48",
+      kind: "phone",
+      sourceType: "directory",
+      sourceUrl: "https://www.list-org.com/company/37022",
+      confidence: 70,
+      status: "found",
+    },
+    {
+      value: "+7 (863) 413-34-23",
+      kind: "phone",
+      sourceType: "directory",
+      sourceUrl: "https://www.list-org.com/company/37022",
+      confidence: 70,
+      status: "found",
+    },
+    {
+      value: "mayak888@mail.ru",
+      kind: "email",
+      sourceType: "directory",
+      sourceUrl: "https://www.list-org.com/company/37022",
+      confidence: 70,
+      status: "found",
+    },
+  ],
+  "6102014170": [
+    {
+      value: "+7 863 502-88-46",
+      kind: "phone",
+      sourceType: "directory",
+      sourceUrl: "https://companium.ru/id/1026100663885-spk-kolhoz-donskoy",
+      confidence: 70,
+      status: "found",
+    },
+  ],
 };
 
 function stripHtml(value: string) {
@@ -132,7 +176,10 @@ export function extractContacts(text: string) {
     ...(text.match(/\(\d{3,5}\)\s*\d[\d\s-]{4,}/g) ?? []),
   ];
   const phones = Array.from(new Set(phoneMatches.map((phone) => phone.replace(/\s+/g, " ").trim()))).filter(
-    (phone) => phone.replace(/\D/g, "").length >= 10,
+    (phone) => {
+      const digits = phone.replace(/\D/g, "");
+      return digits.length >= 10 && digits.length <= 12 && phone.length <= 32 && !digits.startsWith("8800") && !digits.startsWith("800");
+    },
   );
 
   return {
@@ -189,12 +236,15 @@ export function contactValues(
 ) {
   const seen = new Set<string>();
   return [
-    fallback,
+    ...fallback.split(";"),
     ...info.candidates.filter((candidate) => candidate.kind === kind).map((candidate) => candidate.value),
-  ].filter((value) => {
+  ]
+    .map((value) => value.trim())
+    .filter((value) => {
     const trimmed = value.trim();
     if (!trimmed) return false;
-    const key = kind === "phone" ? trimmed.replace(/\D/g, "") : trimmed.toLowerCase();
+    const digits = trimmed.replace(/\D/g, "");
+    const key = kind === "phone" && digits.length >= 7 ? digits : trimmed.toLowerCase();
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
