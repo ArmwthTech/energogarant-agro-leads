@@ -10,7 +10,7 @@ import {
   validateCronSecret,
 } from "./agro";
 import { parseOpenCompanyRows } from "@/lib/parser";
-import { extractContacts } from "@/lib/contact-enrichment";
+import { buildContactCandidates, extractContacts } from "@/lib/contact-enrichment";
 
 assert.equal(normalizeInn(" 61-60 123456 "), "6160123456");
 
@@ -47,6 +47,9 @@ const columns = buildExportColumns({
 assert.ok(!columns.includes("personalPhone"));
 assert.ok(columns.includes("corporateEmail"));
 assert.ok(columns.includes("website"));
+assert.ok(columns.includes("contactStatus"));
+assert.ok(columns.includes("contactConfidence"));
+assert.ok(columns.includes("contactSource"));
 
 const parsed = parseOpenCompanyRows([
   ["61-23-012450", " СПК Колхоз имени Кирова ", "https://egrul.nalog.ru/"],
@@ -93,6 +96,36 @@ assert.equal(validateCronSecret("secret", "Bearer secret").status, 200);
 assert.deepEqual(
   extractContacts("Телефон +7 (863) 123-45-67, email office@agro-don.ru"),
   { phone: "+7 (863) 123-45-67", corporateEmail: "office@agro-don.ru" },
+);
+
+assert.deepEqual(
+  buildContactCandidates(
+    { phone: "+7 (863) 123-45-67", corporateEmail: "" },
+    "https://list-org.com/company",
+    false,
+  ),
+  [
+    {
+      value: "+7 (863) 123-45-67",
+      kind: "phone",
+      sourceType: "directory",
+      sourceUrl: "https://list-org.com/company",
+      confidence: 35,
+      status: "needs_check",
+    },
+  ],
+);
+
+assert.deepEqual(
+  buildContactCandidates(
+    { phone: "+7 (863) 123-45-67", corporateEmail: "office@agro-don.ru" },
+    "https://agro-don.ru/contacts",
+    true,
+  ).map((candidate) => [candidate.kind, candidate.confidence, candidate.status]),
+  [
+    ["phone", 90, "found"],
+    ["email", 90, "found"],
+  ],
 );
 
 const filtered = filterLeadRows(

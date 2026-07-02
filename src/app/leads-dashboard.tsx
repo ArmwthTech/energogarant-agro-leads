@@ -15,12 +15,20 @@ import {
 import { type Lead, statusLabels } from "@/data/sample";
 import { filterLeadRows, type ScoreResult } from "@/domain/agro";
 
-type ScoredLead = Lead & { score: ScoreResult };
+type ScoredLead = Lead & {
+  score: ScoreResult;
+  contactStatus?: string;
+  contactConfidence?: number;
+  contactSourceType?: string;
+};
 type ContactLookup = {
   phone: string;
   corporateEmail: string;
   website: string;
   contactSourceUrl: string;
+  contactStatus: string;
+  contactConfidence: number;
+  contactSourceType: string;
 };
 
 const nav = [
@@ -87,6 +95,9 @@ export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
                   corporateEmail: contact.corporateEmail || lead.corporateEmail,
                   website: contact.website || lead.website,
                   hasCorporateContact: Boolean(contact.phone || contact.corporateEmail || lead.hasCorporateContact),
+                  contactStatus: contact.contactStatus,
+                  contactConfidence: contact.contactConfidence,
+                  contactSourceType: contact.contactSourceType,
                 }
               : lead,
           ),
@@ -111,6 +122,9 @@ export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
                   corporateEmail: contact.corporateEmail || item.corporateEmail,
                   website: contact.website || item.website,
                   hasCorporateContact: Boolean(contact.phone || contact.corporateEmail || item.hasCorporateContact),
+                  contactStatus: contact.contactStatus,
+                  contactConfidence: contact.contactConfidence,
+                  contactSourceType: contact.contactSourceType,
                 }
               : item,
           ),
@@ -308,6 +322,11 @@ export function LeadsDashboard({ leads }: { leads: ScoredLead[] }) {
                       <td className="px-3 py-3 text-xs text-[#667085]">
                         <div>{lead.phone || "телефон не найден"}</div>
                         <div>{lead.corporateEmail || "email не найден"}</div>
+                        {lead.contactStatus && (
+                          <div className="mt-1 text-[11px] text-[#c8102e]">
+                            {lead.contactStatus} · {lead.contactConfidence}% · {lead.contactSourceType}
+                          </div>
+                        )}
                       </td>
                       <td className="px-3 py-3">
                         {rub(lead.score.budgetRangeRub[0])}-{rub(lead.score.budgetRangeRub[1])}

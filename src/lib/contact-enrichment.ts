@@ -6,6 +6,21 @@ export type ContactInfo = {
   corporateEmail: string;
   website: string;
   contactSourceUrl: string;
+  contactStatus: ContactStatus;
+  contactConfidence: number;
+  contactSourceType: ContactSourceType | "";
+  candidates: ContactCandidate[];
+};
+
+export type ContactStatus = "found" | "needs_check" | "verified" | "bad" | "no_answer" | "";
+export type ContactSourceType = "official_site" | "procurement" | "registry" | "map" | "directory" | "social" | "manual";
+export type ContactCandidate = {
+  value: string;
+  kind: "phone" | "email" | "website";
+  sourceType: ContactSourceType;
+  sourceUrl: string;
+  confidence: number;
+  status: ContactStatus;
 };
 
 const cache = new Map<string, ContactInfo>();
@@ -52,18 +67,57 @@ export function extractContacts(text: string) {
   };
 }
 
-function isCompanyWebsite(url: string) {
+function sourceType(url: string): ContactSourceType {
   try {
     const host = new URL(url).hostname.replace(/^www\./, "");
-    return !blockedHosts.some((blocked) => host === blocked || host.endsWith(`.${blocked}`));
+    if (host.includes("2gis") || host.includes("yandex.")) return "map";
+    if (host.includes("vk.") || host.includes("ok.ru")) return "social";
+    if (host.includes("zakupki.gov.ru")) return "procurement";
+    if (host.includes("nalog.ru")) return "registry";
+    if (blockedHosts.some((blocked) => host === blocked || host.endsWith(`.${blocked}`))) return "directory";
+    return "official_site";
   } catch {
-    return false;
+    return "directory";
   }
 }
 
 function matchesLeadPage(text: string, lead: Lead) {
   const digits = text.replace(/\D/g, " ");
   return digits.includes(lead.inn) || digits.includes(lead.ogrn);
+}
+
+export function buildContactCandidates(
+  contacts: ReturnType<typeof extractContacts>,
+  sourceUrl: string,
+  matchedLead: boolean,
+) {
+  const type = sourceType(sourceUrl);
+  const confidence = matchedLead ? (type === "directory" ? 70 : 90) : type === "official_site" ? 55 : 35;
+  const status: ContactStatus = matchedLead ? "found" : "needs_check";
+  const rows: ContactCandidate[] = [];
+  if (contacts.phone) rows.push({ value: contacts.phone, kind: "phone", sourceType: type, sourceUrl, confidence, status });
+  if (contacts.corporateEmail) {
+    rows.push({ value: contacts.corporateEmail, kind: "email", sourceType: type, sourceUrl, confidence, status });
+  }
+  return rows;
+}
+
+function bestCandidate(candidates: ContactCandidate[], kind: ContactCandidate["kind"]) {
+  return candidates
+    .filter((candidate) => candidate.kind === kind)
+    .sort((a, b) => b.confidence - a.confidence)[0];
+}
+
+function dedupeCandidates(candidates: ContactCandidate[]) {
+  const seen = new Set<string>();
+  return candidates
+    .sort((a, b) => b.confidence - a.confidence)
+    .filter((candidate) => {
+      const key = `${candidate.kind}:${candidate.value.replace(/\D/g, "") || candidate.value.toLowerCase()}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 }
 
 function decodeDuckUrl(url: string) {
@@ -103,35 +157,48 @@ export async function findLeadContacts(lead: Lead): Promise<ContactInfo> {
     corporateEmail: "",
     website: safeSourceUrl(lead.website) === "#" ? "" : lead.website,
     contactSourceUrl: "",
+    contactStatus: "",
+    contactConfidence: 0,
+    contactSourceType: "",
+    candidates: [],
   };
 
   try {
     const urls = await searchUrls(lead);
-    for (const url of urls.filter(isCompanyWebsite).slice(0, 4)) {
+    for (const url of urls.slice(0, 8)) {
       try {
         const text = stripHtml(await fetchText(url));
-        if (!matchesLeadPage(text, lead)) continue;
-        result.website ||= new URL(url).origin;
+        const matchedLead = matchesLeadPage(text, lead);
+        if (matchedLead && sourceType(url) === "official_site") result.website ||= new URL(url).origin;
         const contacts = extractContacts(text);
-        result.phone ||= contacts.phone;
-        result.corporateEmail ||= contacts.corporateEmail;
-        result.contactSourceUrl ||= contacts.phone || contacts.corporateEmail ? url : "";
+        result.candidates.push(...buildContactCandidates(contacts, url, matchedLead));
       } catch {}
     }
 
-    if (result.website && isCompanyWebsite(result.website)) {
+    if (result.website) {
       for (const path of ["", "/contacts", "/kontakty", "/contact"]) {
         try {
           const text = stripHtml(await fetchText(`${result.website.replace(/\/$/, "")}${path}`));
-          if (!matchesLeadPage(text, lead)) continue;
+          const matchedLead = matchesLeadPage(text, lead);
           const contacts = extractContacts(text);
-          result.phone ||= contacts.phone;
-          result.corporateEmail ||= contacts.corporateEmail;
-          result.contactSourceUrl ||= contacts.phone || contacts.corporateEmail ? result.website : "";
+          result.candidates.push(
+            ...buildContactCandidates(contacts, `${result.website.replace(/\/$/, "")}${path}`, matchedLead),
+          );
         } catch {}
       }
     }
   } catch {}
+
+  result.candidates = dedupeCandidates(result.candidates);
+  const phone = bestCandidate(result.candidates, "phone");
+  const email = bestCandidate(result.candidates, "email");
+  const best = phone ?? email;
+  result.phone = phone?.value ?? "";
+  result.corporateEmail = email?.value ?? "";
+  result.contactSourceUrl = best?.sourceUrl ?? "";
+  result.contactStatus = best?.status ?? "";
+  result.contactConfidence = best?.confidence ?? 0;
+  result.contactSourceType = best?.sourceType ?? "";
 
   cache.set(lead.inn, result);
   return result;

@@ -20,7 +20,20 @@ export default async function LeadPage({
   const contactInfo = await Promise.race([
     findLeadContacts(lead),
     new Promise<Awaited<ReturnType<typeof findLeadContacts>>>((resolve) =>
-      setTimeout(() => resolve({ phone: "", corporateEmail: "", website: "", contactSourceUrl: "" }), 6000),
+      setTimeout(
+        () =>
+          resolve({
+            phone: "",
+            corporateEmail: "",
+            website: "",
+            contactSourceUrl: "",
+            contactStatus: "",
+            contactConfidence: 0,
+            contactSourceType: "",
+            candidates: [],
+          }),
+        6000,
+      ),
     ),
   ]);
   const enriched = mergeContactInfo(lead, contactInfo);
@@ -79,6 +92,12 @@ export default async function LeadPage({
                 </a>
               ) : (
                 <div className="mt-2 text-[#667085]">Официальный сайт не найден</div>
+              )}
+              {contactInfo.contactStatus && (
+                <div className="mt-3 text-xs text-[#667085]">
+                  Статус: {contactInfo.contactStatus}, доверие: {contactInfo.contactConfidence}%, источник:{" "}
+                  {contactInfo.contactSourceType}
+                </div>
               )}
             </div>
           </section>
