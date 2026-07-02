@@ -11,6 +11,7 @@ import {
 } from "./agro";
 import { parseOpenCompanyRows } from "@/lib/parser";
 import { buildContactCandidates, extractContacts } from "@/lib/contact-enrichment";
+import { fallbackLeadFromInn } from "@/lib/repository";
 
 assert.equal(normalizeInn(" 61-60 123456 "), "6160123456");
 
@@ -159,3 +160,6 @@ const filtered = filterLeadRows(
 );
 
 assert.deepEqual(filtered.map((lead) => lead.inn), ["6102012863"]);
+
+assert.equal(fallbackLeadFromInn("6135005822").inn, "6135005822");
+assert.equal(fallbackLeadFromInn("6135005822").confidence, 20);

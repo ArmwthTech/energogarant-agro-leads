@@ -145,3 +145,13 @@ export async function fetchEgrulRostovLeads() {
   cache = { at: Date.now(), leads: realLeads };
   return realLeads;
 }
+
+export async function fetchEgrulLeadByInn(inn: string) {
+  try {
+    const rows = await egrulSearch(inn);
+    const leads = rows.map(toLead).filter((lead): lead is Lead => Boolean(lead));
+    return leads.find((lead) => lead.inn === inn) ?? null;
+  } catch {
+    return null;
+  }
+}

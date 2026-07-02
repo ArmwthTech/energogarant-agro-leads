@@ -1,7 +1,7 @@
 import { leads, type Lead } from "@/data/sample";
 import { dedupeCompanies, scoreCompany } from "@/domain/agro";
 import { getSql } from "@/lib/db";
-import { fetchEgrulRostovLeads } from "@/lib/egrul";
+import { fetchEgrulLeadByInn, fetchEgrulRostovLeads } from "@/lib/egrul";
 import type { OfficialLeadFact } from "@/lib/sources";
 
 type DbLead = {
@@ -32,6 +32,55 @@ type DbLead = {
   risk_flags: number;
   agent_comment: string;
 };
+
+const globalLeads = globalThis as typeof globalThis & {
+  __energogarantLeadMemory?: Map<string, Lead>;
+};
+const leadMemory = globalLeads.__energogarantLeadMemory ?? new Map<string, Lead>();
+globalLeads.__energogarantLeadMemory = leadMemory;
+
+function scoreLead(lead: Lead) {
+  return {
+    ...lead,
+    score: scoreCompany(lead),
+  };
+}
+
+function remember<T extends Lead>(items: T[]) {
+  for (const item of items) leadMemory.set(item.inn, item);
+  return items;
+}
+
+export function fallbackLeadFromInn(inn: string): Lead {
+  return {
+    id: `fallback-${inn}`,
+    name: `Компания с ИНН ${inn}`,
+    shortName: `ИНН ${inn}`,
+    inn,
+    ogrn: "",
+    district: "Ростовская область",
+    locality: "",
+    address: "Не найдена в текущей открытой выдаче",
+    okved: "требует проверки",
+    status: "check",
+    revenueRub: 0,
+    assetsRub: 0,
+    employees: 0,
+    corporateEmail: "",
+    phone: "",
+    website: "",
+    director: "Руководитель требует проверки",
+    source: "ИНН из ссылки; ЕГРЮЛ не отдал запись в текущем запросе",
+    sourceUrl: "https://egrul.nalog.ru/",
+    confidence: 20,
+    lastUpdated: "2026-07-02",
+    hasCropOkved: false,
+    hasMachinerySignal: false,
+    hasCorporateContact: false,
+    riskFlags: 2,
+    agentComment: "Открытый источник временно не вернул карточку. Нужна повторная проверка ЕГРЮЛ или ручное подтверждение.",
+  };
+}
 
 function mapDbLead(row: DbLead): Lead {
   return {
@@ -68,10 +117,7 @@ export async function getLeads() {
   const sql = getSql();
   if (!sql) {
     // ponytail: merge seed so volatile EGRUL search cannot break direct lead URLs.
-    return dedupeCompanies([...(await fetchEgrulRostovLeads()), ...leads]).map((lead) => ({
-      ...lead,
-      score: scoreCompany(lead),
-    }));
+    return remember(dedupeCompanies([...(await fetchEgrulRostovLeads()), ...leads])).map(scoreLead);
   }
 
   const rows = await sql`
@@ -81,10 +127,24 @@ export async function getLeads() {
     limit 10000
   `;
 
-  return (rows as DbLead[]).map(mapDbLead).map((lead) => ({
-    ...lead,
-    score: scoreCompany(lead),
-  }));
+  return remember((rows as DbLead[]).map(mapDbLead)).map(scoreLead);
+}
+
+export async function getLeadByInn(inn: string) {
+  const cleanInn = inn.replace(/\D/g, "");
+  const seed = leads.find((lead) => lead.inn === cleanInn);
+  if (seed) return scoreLead(seed);
+
+  const cached = leadMemory.get(cleanInn);
+  if (cached) return scoreLead(cached);
+
+  const fromList = (await getLeads()).find((lead) => lead.inn === cleanInn);
+  if (fromList) return fromList;
+
+  const fromEgrul = await fetchEgrulLeadByInn(cleanInn);
+  if (!fromEgrul) return scoreLead(fallbackLeadFromInn(cleanInn));
+  remember([fromEgrul]);
+  return scoreLead(fromEgrul);
 }
 
 export async function saveOfficialImportBatch(

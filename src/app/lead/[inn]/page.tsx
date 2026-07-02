@@ -1,9 +1,7 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { ExternalLink, Search } from "lucide-react";
 import { findLeadContacts, mergeContactInfo } from "@/lib/contact-enrichment";
-import { leads } from "@/data/sample";
-import { getLeads } from "@/lib/repository";
+import { getLeadByInn } from "@/lib/repository";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +12,7 @@ export default async function LeadPage({
 }) {
   const { inn } = await params;
   const cleanInn = inn.replace(/\D/g, "");
-  const lead = leads.find((item) => item.inn === cleanInn) ?? (await getLeads()).find((item) => item.inn === cleanInn);
-  if (!lead) notFound();
+  const lead = await getLeadByInn(cleanInn);
 
   const contactInfo = await Promise.race([
     findLeadContacts(lead),
