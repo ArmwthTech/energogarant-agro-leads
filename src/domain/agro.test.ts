@@ -10,7 +10,7 @@ import {
   validateCronSecret,
 } from "./agro";
 import { parseOpenCompanyRows } from "@/lib/parser";
-import { buildContactCandidates, extractContacts } from "@/lib/contact-enrichment";
+import { buildContactCandidates, extractContacts, findLeadContacts } from "@/lib/contact-enrichment";
 import { fallbackLeadFromInn } from "@/lib/repository";
 
 assert.equal(normalizeInn(" 61-60 123456 "), "6160123456");
@@ -100,6 +100,11 @@ assert.deepEqual(
 );
 
 assert.deepEqual(
+  extractContacts("Телефоны (86349) 2-62-71; (928) 123-32-85, email office@agro-don.ru"),
+  { phone: "(86349) 2-62-71", corporateEmail: "office@agro-don.ru" },
+);
+
+assert.deepEqual(
   buildContactCandidates(
     { phone: "+7 (863) 123-45-67", corporateEmail: "" },
     "https://list-org.com/company",
@@ -114,6 +119,18 @@ assert.deepEqual(
       confidence: 35,
       status: "needs_check",
     },
+  ],
+);
+
+assert.deepEqual(
+  buildContactCandidates(
+    { phone: "+7 863 493-62-51", corporateEmail: "kolos12006@yandex.ru" },
+    "https://checko.ru/company/spk-kolhoz-kolos-1026101312710",
+    true,
+  ).map((candidate) => [candidate.kind, candidate.sourceType, candidate.confidence, candidate.status]),
+  [
+    ["phone", "directory", 70, "found"],
+    ["email", "directory", 70, "found"],
   ],
 );
 
@@ -163,3 +180,18 @@ assert.deepEqual(filtered.map((lead) => lead.inn), ["6102012863"]);
 
 assert.equal(fallbackLeadFromInn("6135005822").inn, "6135005822");
 assert.equal(fallbackLeadFromInn("6135005822").confidence, 20);
+
+findLeadContacts({
+  ...fallbackLeadFromInn("6122006924"),
+  shortName: 'СПК (КОЛХОЗ) "КОЛОС"',
+  ogrn: "1026101312710",
+})
+  .then((kolosContacts) => {
+    assert.equal(kolosContacts.phone, "+7 863 493-62-51");
+    assert.equal(kolosContacts.corporateEmail, "kolos12006@yandex.ru");
+    assert.equal(kolosContacts.contactSourceType, "directory");
+  })
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });

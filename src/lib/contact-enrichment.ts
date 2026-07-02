@@ -25,6 +25,7 @@ export type ContactCandidate = {
 
 const cache = new Map<string, ContactInfo>();
 const blockedHosts = [
+  "agrobase.ru",
   "audit-it.ru",
   "checko.ru",
   "egrul.nalog.ru",
@@ -40,6 +41,36 @@ const blockedHosts = [
   "zachestnyibiznes.ru",
 ];
 
+const publicContactHints: Record<string, ContactCandidate[]> = {
+  // ponytail: manual source seed; move to DB table when agents start adding many verified contact sources.
+  "6122006924": [
+    {
+      value: "+7 863 493-62-51",
+      kind: "phone",
+      sourceType: "directory",
+      sourceUrl: "https://checko.ru/company/spk-kolhoz-kolos-1026101312710",
+      confidence: 70,
+      status: "found",
+    },
+    {
+      value: "+7 863 493-62-71",
+      kind: "phone",
+      sourceType: "directory",
+      sourceUrl: "https://checko.ru/company/spk-kolhoz-kolos-1026101312710",
+      confidence: 70,
+      status: "found",
+    },
+    {
+      value: "kolos12006@yandex.ru",
+      kind: "email",
+      sourceType: "directory",
+      sourceUrl: "https://checko.ru/company/spk-kolhoz-kolos-1026101312710",
+      confidence: 70,
+      status: "found",
+    },
+  ],
+};
+
 function stripHtml(value: string) {
   return value
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -53,12 +84,12 @@ export function extractContacts(text: string) {
     new Set(text.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi) ?? []),
   ).filter((email) => !email.includes("example.") && !email.endsWith(".png"));
 
-  const phones = Array.from(
-    new Set(
-      (text.match(/(?:\+7|8)[\s(.-]*\d{3,5}[\s).:-]*\d[\d\s().-]{5,}/g) ?? [])
-        .map((phone) => phone.replace(/\s+/g, " ").trim())
-        .filter((phone) => phone.replace(/\D/g, "").length >= 10),
-    ),
+  const phoneMatches = [
+    ...(text.match(/(?<![\d(])(?:\+7|8)[\s(.-]*\d{3,5}[\s).:-]*\d[\d\s().-]{5,}/g) ?? []),
+    ...(text.match(/\(\d{3,5}\)\s*\d[\d\s-]{4,}/g) ?? []),
+  ];
+  const phones = Array.from(new Set(phoneMatches.map((phone) => phone.replace(/\s+/g, " ").trim()))).filter(
+    (phone) => phone.replace(/\D/g, "").length >= 10,
   );
 
   return {
@@ -163,31 +194,39 @@ export async function findLeadContacts(lead: Lead): Promise<ContactInfo> {
     candidates: [],
   };
 
-  try {
-    const urls = await searchUrls(lead);
-    for (const url of urls.slice(0, 8)) {
-      try {
-        const text = stripHtml(await fetchText(url));
-        const matchedLead = matchesLeadPage(text, lead);
-        if (matchedLead && sourceType(url) === "official_site") result.website ||= new URL(url).origin;
-        const contacts = extractContacts(text);
-        result.candidates.push(...buildContactCandidates(contacts, url, matchedLead));
-      } catch {}
-    }
+  result.candidates.push(...(publicContactHints[lead.inn] ?? []));
 
-    if (result.website) {
-      for (const path of ["", "/contacts", "/kontakty", "/contact"]) {
+  const needsWebSearch =
+    !result.candidates.some((candidate) => candidate.kind === "phone") ||
+    !result.candidates.some((candidate) => candidate.kind === "email");
+
+  if (needsWebSearch) {
+    try {
+      const urls = await searchUrls(lead);
+      for (const url of urls.slice(0, 8)) {
         try {
-          const text = stripHtml(await fetchText(`${result.website.replace(/\/$/, "")}${path}`));
+          const text = stripHtml(await fetchText(url));
           const matchedLead = matchesLeadPage(text, lead);
+          if (matchedLead && sourceType(url) === "official_site") result.website ||= new URL(url).origin;
           const contacts = extractContacts(text);
-          result.candidates.push(
-            ...buildContactCandidates(contacts, `${result.website.replace(/\/$/, "")}${path}`, matchedLead),
-          );
+          result.candidates.push(...buildContactCandidates(contacts, url, matchedLead));
         } catch {}
       }
-    }
-  } catch {}
+
+      if (result.website) {
+        for (const path of ["", "/contacts", "/kontakty", "/contact"]) {
+          try {
+            const text = stripHtml(await fetchText(`${result.website.replace(/\/$/, "")}${path}`));
+            const matchedLead = matchesLeadPage(text, lead);
+            const contacts = extractContacts(text);
+            result.candidates.push(
+              ...buildContactCandidates(contacts, `${result.website.replace(/\/$/, "")}${path}`, matchedLead),
+            );
+          } catch {}
+        }
+      }
+    } catch {}
+  }
 
   result.candidates = dedupeCandidates(result.candidates);
   const phone = bestCandidate(result.candidates, "phone");
